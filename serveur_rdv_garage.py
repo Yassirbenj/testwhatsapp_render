@@ -147,10 +147,12 @@ def create_appointment(sender, slot_start, slot_end):
     created_event = calendar_service.events().insert(calendarId=CALENDAR_ID, body=event).execute()
     return created_event.get('htmlLink')
 
-# Charger le scénario depuis le fichier process.json
+# Charger les scénarios depuis les fichiers process
 with open('process_garage.json', 'r') as f:
-    process = json.load(f)
+    process_garage = json.load(f)
 
+with open('process.json', 'r') as f:
+    process_formation = json.load(f)
 
 # Stocker l'état et les réponses de chaque utilisateur
 user_data = {}
@@ -179,20 +181,34 @@ def webhook():
                         sender = message['from']
 
                         if sender not in user_data:
-                            user_data[sender] = {
-                                'state': 'initial',
-                                'current_step': 0,
-                                'data': {}
-                            }
-
-                            send_step_message(sender, 0)
+                            # Premier message - choisir le processus
+                            if text.lower() == "1":
+                                user_data[sender] = {
+                                    'state': 'initial',
+                                    'current_step': 0,
+                                    'data': {},
+                                    'process': process_garage
+                                }
+                                send_step_message(sender, 0, process_garage)
+                            elif text.lower() == "2":
+                                user_data[sender] = {
+                                    'state': 'initial',
+                                    'current_step': 0,
+                                    'data': {},
+                                    'process': process_formation
+                                }
+                                send_step_message(sender, 0, process_formation)
+                            else:
+                                # Message initial pour choisir le processus
+                                send_message(sender, "Bienvenue ! Que souhaitez-vous faire ?\n1️⃣ Prendre rendez-vous au garage\n2️⃣ S'informer sur nos formations")
                             return "OK", 200
 
                         state = user_data[sender]['state']
                         step_index = user_data[sender]['current_step']
+                        current_process = user_data[sender]['process']
 
-                        if step_index < len(process):
-                            current_step = process[step_index]
+                        if step_index < len(current_process):
+                            current_step = current_process[step_index]
 
                             # === SAUVEGARDE de la réponse utilisateur ===
                             save_key = current_step.get('save_as')
@@ -208,15 +224,19 @@ def webhook():
                                     user_data[sender]['current_step'] = next_step
 
                                 # ⚡ Directement lancer la suite
-                                if user_data[sender]['current_step'] >= len(process):
-                                    print(f"Utilisateur {sender} a terminé le process principal (no_reply). Passage à la prise de RDV.")
-                                    send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
-                                    user_data[sender]['state'] = 'ask_start_date'
+                                if user_data[sender]['current_step'] >= len(current_process):
+                                    if current_process == process_garage:
+                                        print(f"Utilisateur {sender} a terminé le process principal (no_reply). Passage à la prise de RDV.")
+                                        send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
+                                        user_data[sender]['state'] = 'ask_start_date'
+                                    else:
+                                        # Logique spécifique pour le processus formation
+                                        send_message(sender, "Merci pour vos réponses ! Nous vous contacterons bientôt.")
+                                        user_data[sender]['state'] = 'completed'
                                 else:
-                                    send_step_message(sender, user_data[sender]['current_step'])
+                                    send_step_message(sender, user_data[sender]['current_step'], current_process)
 
                                 return "OK", 200
-
 
                             if current_step['expected_answers'] != "free_text":
                                 if text not in current_step['expected_answers']:
@@ -230,32 +250,35 @@ def webhook():
                             else:
                                 user_data[sender]['current_step'] = next_step
 
-                            send_step_message(sender, user_data[sender]['current_step'])
+                            send_step_message(sender, user_data[sender]['current_step'], current_process)
                             return "OK", 200
 
-                        elif step_index >= len(process):
-                            # Ici c'est fini, on lance la suite spéciale (prise de rendez-vous par exemple)
-                            if state=='initial':
+                        elif step_index >= len(current_process):
+                            # Ici c'est fini, on lance la suite spéciale selon le processus
+                            if state == 'initial':
                                 print(f"Utilisateur {sender} a terminé le process principal. Passage à la suite.")
 
-                                # Proposer une date pour prise de rendez-vous
-                                send_message(sender, "Merci pour vos réponses 🙏. Maintenant, choisissons ensemble un créneau pour votre rendez-vous.")
-                                send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
-                                user_data[sender]['state'] = 'ask_start_date'
+                                if current_process == process_garage:
+                                    # Proposer une date pour prise de rendez-vous
+                                    send_message(sender, "Merci pour vos réponses 🙏. Maintenant, choisissons ensemble un créneau pour votre rendez-vous.")
+                                    send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
+                                    user_data[sender]['state'] = 'ask_start_date'
 
+                                    # Construction de la ligne à enregistrer
+                                    record = [sender]  # Numéro de téléphone WhatsApp
+                                    for key, value in user_data[sender]['data'].items():
+                                        record.append(value)
 
-                                # Construction de la ligne à enregistrer
-                                record = [sender]  # Numéro de téléphone WhatsApp
-                                for key, value in user_data[sender]['data'].items():
-                                    record.append(value)
+                                    # Ajouter une ligne dans Google Sheets
+                                    sheet.append_row(record)
+                                    print(f"✅ Lead ajouté dans Google Sheet : {record}")
+                                else:
+                                    # Logique pour le processus formation
+                                    send_message(sender, "Merci pour vos réponses ! Nous vous contacterons bientôt.")
+                                    user_data[sender]['state'] = 'completed'
 
-                                # Ajouter une ligne dans Google Sheets
-                                sheet.append_row(record)
-
-                                print(f"✅ Lead ajouté dans Google Sheet : {record}")
-
-                            # Demander une date de début pour chercher les créneaux
-                            elif state=='ask_start_date':
+                            # Le reste du code pour la gestion des rendez-vous reste inchangé
+                            elif state == 'ask_start_date':
                                 try:
                                     user_date = datetime.strptime(text, "%Y-%m-%d").date()
                                     slots = find_available_slots(user_date)
@@ -291,7 +314,7 @@ def webhook():
 
 # === ENVOI DE MESSAGES WHATSAPP ===
 
-def send_step_message(to_number, step_index):
+def send_step_message(to_number, step_index, process):
     message = process[step_index]['message']
     send_message(to_number, message)
 
