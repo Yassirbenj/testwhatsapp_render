@@ -1,0 +1,32 @@
+[
+  {
+    "message": "Bonjour c'est l'Ismagi, merci d'avoir renseign\u00e9 le formulaire facebook. J'aurais besoin de 5mn pour te poser quelques questions.\n\n1- Je suis disponible\n2- Non, j'ai rien renseign\u00e9",
+    "expected_answers": [
+      "1",
+      "2"
+    ],
+    "next_step": {
+      "1": 1,
+      "2": 99
+    },
+    "save_as": "accord"
+  },
+  {
+    "message": "T'es int\u00e9ress\u00e9 par les \u00e9tudes post-bac ou master ?\n\n1- Post-bac\n2- Master",
+    "expected_answers": [
+      "1",
+      "2"
+    ],
+    "next_step": {
+      "1": 2,
+      "2": 2
+    },
+    "save_as": "cursus"
+  },
+  {
+    "message": "Merci, quel est ton nom ?",
+    "expected_answers": "free_text",
+    "next_step": 99,
+    "save_as": "nom"
+  }
+]
