@@ -1,6 +1,6 @@
 '''solution de bot rdv'''
 
-from flask import Flask, request
+from flask import Flask, request, jsonify
 import requests
 import json
 import gspread
@@ -170,6 +170,202 @@ def cleanup_old_conversations():
 
 # === FLASK SETUP ===
 app = Flask(__name__)
+
+@app.route('/process-editor', methods=['GET', 'POST'])
+def process_editor():
+    if request.method == 'POST':
+        try:
+            process_data = request.form.get('process_data')
+            process_type = request.form.get('process_type')
+
+            # Sauvegarder le processus dans le bon fichier
+            filename = 'process_garage.json' if process_type == 'garage' else 'process.json'
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(json.loads(process_data), f, ensure_ascii=False, indent=2)
+
+            return jsonify({"status": "success", "message": "Processus sauvegardé avec succès!"})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    # Charger les processus existants
+    try:
+        with open('process_garage.json', 'r', encoding='utf-8') as f:
+            process_garage_data = json.dumps(json.load(f), ensure_ascii=False, indent=2)
+    except:
+        process_garage_data = "[]"
+
+    try:
+        with open('process.json', 'r', encoding='utf-8') as f:
+            process_formation_data = json.dumps(json.load(f), ensure_ascii=False, indent=2)
+    except:
+        process_formation_data = "[]"
+
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Éditeur de Processus</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 20px;
+                background-color: #f5f5f5;
+            }}
+            .container {{
+                max-width: 1200px;
+                margin: 0 auto;
+            }}
+            .editor-container {{
+                margin-bottom: 20px;
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }}
+            .CodeMirror {{
+                height: 400px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }}
+            h1 {{
+                color: #333;
+                margin-bottom: 20px;
+            }}
+            h2 {{
+                color: #444;
+                margin-top: 30px;
+            }}
+            button {{
+                background-color: #4CAF50;
+                color: white;
+                padding: 10px 20px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 16px;
+                margin-top: 10px;
+            }}
+            button:hover {{
+                background-color: #45a049;
+            }}
+            .status {{
+                margin-top: 10px;
+                padding: 10px;
+                border-radius: 4px;
+                display: none;
+            }}
+            .success {{
+                background-color: #dff0d8;
+                color: #3c763d;
+                border: 1px solid #d6e9c6;
+            }}
+            .error {{
+                background-color: #f2dede;
+                color: #a94442;
+                border: 1px solid #ebccd1;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Éditeur de Processus WhatsApp</h1>
+
+            <div class="editor-container">
+                <h2>Processus Garage</h2>
+                <textarea id="garageEditor">{process_garage_data}</textarea>
+                <button onclick="saveProcess('garage')">Sauvegarder Processus Garage</button>
+                <div id="garageStatus" class="status"></div>
+            </div>
+
+            <div class="editor-container">
+                <h2>Processus Formation</h2>
+                <textarea id="formationEditor">{process_formation_data}</textarea>
+                <button onclick="saveProcess('formation')">Sauvegarder Processus Formation</button>
+                <div id="formationStatus" class="status"></div>
+            </div>
+        </div>
+
+        <script>
+            // Initialiser les éditeurs CodeMirror
+            var garageEditor = CodeMirror.fromTextArea(document.getElementById("garageEditor"), {{
+                mode: "application/json",
+                theme: "monokai",
+                lineNumbers: true,
+                autoCloseBrackets: true,
+                matchBrackets: true,
+                indentUnit: 2,
+                tabSize: 2
+            }});
+
+            var formationEditor = CodeMirror.fromTextArea(document.getElementById("formationEditor"), {{
+                mode: "application/json",
+                theme: "monokai",
+                lineNumbers: true,
+                autoCloseBrackets: true,
+                matchBrackets: true,
+                indentUnit: 2,
+                tabSize: 2
+            }});
+
+            function saveProcess(type) {{
+                const editor = type === 'garage' ? garageEditor : formationEditor;
+                const statusDiv = document.getElementById(type + 'Status');
+
+                try {{
+                    // Valider le JSON
+                    const processData = editor.getValue();
+                    JSON.parse(processData); // Vérifie si le JSON est valide
+
+                    // Envoyer les données au serveur
+                    fetch('/process-editor', {{
+                        method: 'POST',
+                        headers: {{
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        }},
+                        body: `process_data=${{encodeURIComponent(processData)}}&process_type=${{type}}`
+                    }})
+                    .then(response => response.json())
+                    .then(data => {{
+                        statusDiv.style.display = 'block';
+                        if (data.status === 'success') {{
+                            statusDiv.className = 'status success';
+                            statusDiv.textContent = data.message;
+                        }} else {{
+                            statusDiv.className = 'status error';
+                            statusDiv.textContent = 'Erreur: ' + data.message;
+                        }}
+                        setTimeout(() => {{
+                            statusDiv.style.display = 'none';
+                        }}, 3000);
+                    }})
+                    .catch(error => {{
+                        statusDiv.style.display = 'block';
+                        statusDiv.className = 'status error';
+                        statusDiv.textContent = 'Erreur: ' + error.message;
+                        setTimeout(() => {{
+                            statusDiv.style.display = 'none';
+                        }}, 3000);
+                    }});
+                }} catch (e) {{
+                    statusDiv.style.display = 'block';
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = 'Erreur de syntaxe JSON: ' + e.message;
+                    setTimeout(() => {{
+                        statusDiv.style.display = 'none';
+                    }}, 3000);
+                }}
+            }}
+        </script>
+    </body>
+    </html>
+    """
 
 @app.route('/privacy', methods=['GET'])
 def privacy_policy():
