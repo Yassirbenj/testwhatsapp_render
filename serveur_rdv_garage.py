@@ -171,6 +171,530 @@ def cleanup_old_conversations():
 # === FLASK SETUP ===
 app = Flask(__name__)
 
+@app.route('/process-creator', methods=['GET', 'POST'])
+def process_creator():
+    if request.method == 'POST':
+        try:
+            process_data = request.form.get('process_data')
+            process_type = request.form.get('process_type')
+            process_name = request.form.get('process_name', '').strip()
+
+            # Créer le nom du fichier avec timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"processes/{process_type}_{timestamp}.json"
+
+            # Créer le dossier processes s'il n'existe pas
+            os.makedirs('processes', exist_ok=True)
+
+            # Sauvegarder le processus
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'name': process_name,
+                    'created_at': timestamp,
+                    'steps': json.loads(process_data)
+                }, f, ensure_ascii=False, indent=2)
+
+            return jsonify({
+                "status": "success",
+                "message": "Processus sauvegardé avec succès!",
+                "filename": filename
+            })
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)})
+
+    # Charger la liste des processus existants
+    processes = []
+    if os.path.exists('processes'):
+        for filename in os.listdir('processes'):
+            if filename.endswith('.json'):
+                try:
+                    with open(os.path.join('processes', filename), 'r', encoding='utf-8') as f:
+                        process_data = json.load(f)
+                        processes.append({
+                            'filename': filename,
+                            'name': process_data.get('name', 'Sans nom'),
+                            'created_at': process_data.get('created_at', ''),
+                            'type': 'garage' if 'garage' in filename else 'formation'
+                        })
+                except:
+                    continue
+
+    # Trier les processus par date de création (plus récent en premier)
+    processes.sort(key=lambda x: x['created_at'], reverse=True)
+
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Créateur de Processus</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 20px;
+                background-color: #f5f5f5;
+            }}
+            .container {{
+                max-width: 1200px;
+                margin: 0 auto;
+            }}
+            .process-list {{
+                margin-bottom: 20px;
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }}
+            .process-item {{
+                padding: 10px;
+                border-bottom: 1px solid #eee;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }}
+            .process-item:last-child {{
+                border-bottom: none;
+            }}
+            .process-info {{
+                flex-grow: 1;
+            }}
+            .process-actions {{
+                display: flex;
+                gap: 10px;
+            }}
+            .process-name {{
+                font-weight: bold;
+                color: #333;
+            }}
+            .process-date {{
+                color: #666;
+                font-size: 0.9em;
+            }}
+            .process-type {{
+                background: #e0e0e0;
+                padding: 2px 8px;
+                border-radius: 12px;
+                font-size: 0.8em;
+                color: #666;
+            }}
+            .step-container {{
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                margin-bottom: 20px;
+            }}
+            .form-group {{
+                margin-bottom: 15px;
+            }}
+            label {{
+                display: block;
+                margin-bottom: 5px;
+                color: #333;
+                font-weight: bold;
+            }}
+            input[type="text"], textarea, select {{
+                width: 100%;
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                box-sizing: border-box;
+            }}
+            textarea {{
+                height: 100px;
+                resize: vertical;
+            }}
+            .button-group {{
+                margin-top: 20px;
+            }}
+            button {{
+                background-color: #4CAF50;
+                color: white;
+                padding: 10px 20px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 16px;
+                margin-right: 10px;
+            }}
+            button:hover {{
+                background-color: #45a049;
+            }}
+            button.delete {{
+                background-color: #f44336;
+            }}
+            button.delete:hover {{
+                background-color: #da190b;
+            }}
+            .status {{
+                margin-top: 10px;
+                padding: 10px;
+                border-radius: 4px;
+                display: none;
+            }}
+            .success {{
+                background-color: #dff0d8;
+                color: #3c763d;
+                border: 1px solid #d6e9c6;
+            }}
+            .error {{
+                background-color: #f2dede;
+                color: #a94442;
+                border: 1px solid #ebccd1;
+            }}
+            .step-header {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 15px;
+            }}
+            .step-number {{
+                font-size: 1.2em;
+                font-weight: bold;
+                color: #333;
+            }}
+            .expected-answers {{
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                margin-top: 10px;
+            }}
+            .answer-input {{
+                display: flex;
+                align-items: center;
+                gap: 5px;
+            }}
+            .answer-input input {{
+                width: auto;
+            }}
+            .answer-input button {{
+                padding: 5px 10px;
+                font-size: 14px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Créateur de Processus WhatsApp</h1>
+
+            <div class="process-list">
+                <h2>Processus existants</h2>
+                {''.join(f'''
+                    <div class="process-item">
+                        <div class="process-info">
+                            <div class="process-name">{process['name']}</div>
+                            <div class="process-date">Créé le {process['created_at']}</div>
+                        </div>
+                        <div class="process-actions">
+                            <span class="process-type">{process['type']}</span>
+                            <button onclick="loadProcess('{process['filename']}')">Charger</button>
+                            <button onclick="activateProcess('{process['filename']}')" class="activate">Activer</button>
+                        </div>
+                    </div>
+                ''' for process in processes)}
+            </div>
+
+            <div class="form-group">
+                <label for="processName">Nom du processus:</label>
+                <input type="text" id="processName" placeholder="Entrez un nom pour ce processus">
+            </div>
+
+            <div class="form-group">
+                <label for="processType">Type de Processus:</label>
+                <select id="processType">
+                    <option value="garage">Processus Garage</option>
+                    <option value="formation">Processus Formation</option>
+                </select>
+            </div>
+
+            <div id="stepsContainer"></div>
+
+            <div class="button-group">
+                <button onclick="addStep()">Ajouter une étape</button>
+                <button onclick="saveProcess()">Sauvegarder le processus</button>
+            </div>
+
+            <div id="status" class="status"></div>
+        </div>
+
+        <script>
+            let steps = [];
+
+            function addStep() {{
+                const stepNumber = steps.length + 1;
+                const stepHtml = `
+                    <div class="step-container" id="step-${{stepNumber}}">
+                        <div class="step-header">
+                            <span class="step-number">Étape ${{stepNumber}}</span>
+                            <button class="delete" onclick="deleteStep(${{stepNumber}})">Supprimer</button>
+                        </div>
+                        <div class="form-group">
+                            <label>Message:</label>
+                            <textarea id="message-${{stepNumber}}" placeholder="Entrez le message de cette étape"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Type de réponse attendue:</label>
+                            <select id="answerType-${{stepNumber}}" onchange="toggleExpectedAnswers(${{stepNumber}})">
+                                <option value="free_text">Texte libre</option>
+                                <option value="choices">Choix multiples</option>
+                                <option value="no_reply">Pas de réponse attendue</option>
+                            </select>
+                        </div>
+                        <div id="expectedAnswers-${{stepNumber}}" class="form-group" style="display: none;">
+                            <label>Réponses attendues:</label>
+                            <div class="expected-answers" id="answersList-${{stepNumber}}">
+                                <div class="answer-input">
+                                    <input type="text" placeholder="Option">
+                                    <button onclick="addAnswer(${{stepNumber}})">+</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Clé de sauvegarde (optionnel):</label>
+                            <input type="text" id="saveAs-${{stepNumber}}" placeholder="ex: nom, email, etc.">
+                        </div>
+                        <div class="form-group">
+                            <label>Prochaine étape:</label>
+                            <input type="number" id="nextStep-${{stepNumber}}" min="1" value="${{stepNumber + 1}}">
+                        </div>
+                    </div>
+                `;
+                document.getElementById('stepsContainer').insertAdjacentHTML('beforeend', stepHtml);
+                steps.push(stepNumber);
+            }}
+
+            function deleteStep(stepNumber) {{
+                const stepElement = document.getElementById(`step-${{stepNumber}}`);
+                stepElement.remove();
+                steps = steps.filter(s => s !== stepNumber);
+                updateStepNumbers();
+            }}
+
+            function updateStepNumbers() {{
+                steps.forEach((oldNumber, index) => {{
+                    const newNumber = index + 1;
+                    const stepElement = document.getElementById(`step-${{oldNumber}}`);
+                    if (stepElement) {{
+                        stepElement.id = `step-${{newNumber}}`;
+                        stepElement.querySelector('.step-number').textContent = `Étape ${{newNumber}}`;
+                        stepElement.querySelector('.delete').setAttribute('onclick', `deleteStep(${{newNumber}})`);
+
+                        // Mettre à jour les IDs des champs
+                        const messageField = stepElement.querySelector(`textarea`);
+                        messageField.id = `message-${{newNumber}}`;
+
+                        const answerTypeField = stepElement.querySelector(`select`);
+                        answerTypeField.id = `answerType-${{newNumber}}`;
+                        answerTypeField.setAttribute('onchange', `toggleExpectedAnswers(${{newNumber}})`);
+
+                        const expectedAnswersDiv = stepElement.querySelector(`#expectedAnswers-${{oldNumber}}`);
+                        expectedAnswersDiv.id = `expectedAnswers-${{newNumber}}`;
+
+                        const answersList = stepElement.querySelector(`#answersList-${{oldNumber}}`);
+                        answersList.id = `answersList-${{newNumber}}`;
+
+                        const saveAsField = stepElement.querySelector(`input[type="text"]`);
+                        saveAsField.id = `saveAs-${{newNumber}}`;
+
+                        const nextStepField = stepElement.querySelector(`input[type="number"]`);
+                        nextStepField.id = `nextStep-${{newNumber}}`;
+                        nextStepField.value = newNumber + 1;
+                    }}
+                }});
+            }}
+
+            function toggleExpectedAnswers(stepNumber) {{
+                const answerType = document.getElementById(`answerType-${{stepNumber}}`).value;
+                const expectedAnswersDiv = document.getElementById(`expectedAnswers-${{stepNumber}}`);
+                expectedAnswersDiv.style.display = answerType === 'choices' ? 'block' : 'none';
+            }}
+
+            function addAnswer(stepNumber) {{
+                const answersList = document.getElementById(`answersList-${{stepNumber}}`);
+                const newAnswer = document.createElement('div');
+                newAnswer.className = 'answer-input';
+                newAnswer.innerHTML = `
+                    <input type="text" placeholder="Option">
+                    <button onclick="this.parentElement.remove()">-</button>
+                `;
+                answersList.appendChild(newAnswer);
+            }}
+
+            function loadProcess(filename) {{
+                fetch(`/processes/${{filename}}`)
+                    .then(response => response.json())
+                    .then(data => {{
+                        // Vider les étapes existantes
+                        steps = [];
+                        document.getElementById('stepsContainer').innerHTML = '';
+
+                        // Remplir le nom et le type
+                        document.getElementById('processName').value = data.name || '';
+                        document.getElementById('processType').value = filename.includes('garage') ? 'garage' : 'formation';
+
+                        // Ajouter les étapes
+                        data.steps.forEach(step => {{
+                            addStep();
+                            const stepNumber = steps[steps.length - 1];
+
+                            document.getElementById(`message-${{stepNumber}}`).value = step.message;
+                            document.getElementById(`answerType-${{stepNumber}}`).value =
+                                Array.isArray(step.expected_answers) ? 'choices' : step.expected_answers;
+
+                            if (Array.isArray(step.expected_answers)) {{
+                                const answersList = document.getElementById(`answersList-${{stepNumber}}`);
+                                answersList.innerHTML = '';
+                                step.expected_answers.forEach(answer => {{
+                                    const newAnswer = document.createElement('div');
+                                    newAnswer.className = 'answer-input';
+                                    newAnswer.innerHTML = `
+                                        <input type="text" value="${{answer}}">
+                                        <button onclick="this.parentElement.remove()">-</button>
+                                    `;
+                                    answersList.appendChild(newAnswer);
+                                }});
+                                document.getElementById(`expectedAnswers-${{stepNumber}}`).style.display = 'block';
+                            }}
+
+                            document.getElementById(`saveAs-${{stepNumber}}`).value = step.save_as || '';
+                            document.getElementById(`nextStep-${{stepNumber}}`).value = step.next_step;
+                        }});
+                    }})
+                    .catch(error => {{
+                        console.error('Erreur lors du chargement:', error);
+                    }});
+            }}
+
+            function activateProcess(filename) {{
+                fetch('/activate-process', {{
+                    method: 'POST',
+                    headers: {{
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    }},
+                    body: `filename=${{filename}}`
+                }})
+                .then(response => response.json())
+                .then(data => {{
+                    const statusDiv = document.getElementById('status');
+                    statusDiv.style.display = 'block';
+                    if (data.status === 'success') {{
+                        statusDiv.className = 'status success';
+                        statusDiv.textContent = data.message;
+                    }} else {{
+                        statusDiv.className = 'status error';
+                        statusDiv.textContent = 'Erreur: ' + data.message;
+                    }}
+                    setTimeout(() => {{
+                        statusDiv.style.display = 'none';
+                    }}, 3000);
+                }})
+                .catch(error => {{
+                    console.error('Erreur lors de l\'activation:', error);
+                }});
+            }}
+
+            function saveProcess() {{
+                const processType = document.getElementById('processType').value;
+                const processName = document.getElementById('processName').value;
+                const process = [];
+
+                steps.forEach(stepNumber => {{
+                    const step = {{
+                        message: document.getElementById(`message-${{stepNumber}}`).value,
+                        expected_answers: document.getElementById(`answerType-${{stepNumber}}`).value,
+                        next_step: parseInt(document.getElementById(`nextStep-${{stepNumber}}`).value),
+                        save_as: document.getElementById(`saveAs-${{stepNumber}}`).value || null
+                    }};
+
+                    if (step.expected_answers === 'choices') {{
+                        const answers = Array.from(document.getElementById(`answersList-${{stepNumber}}`).querySelectorAll('input'))
+                            .map(input => input.value)
+                            .filter(value => value.trim() !== '');
+                        step.expected_answers = answers;
+                    }}
+
+                    process.push(step);
+                }});
+
+                // Envoyer au serveur
+                fetch('/process-creator', {{
+                    method: 'POST',
+                    headers: {{
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    }},
+                    body: `process_data=${{encodeURIComponent(JSON.stringify(process))}}&process_type=${{processType}}&process_name=${{encodeURIComponent(processName)}}`
+                }})
+                .then(response => response.json())
+                .then(data => {{
+                    const statusDiv = document.getElementById('status');
+                    statusDiv.style.display = 'block';
+                    if (data.status === 'success') {{
+                        statusDiv.className = 'status success';
+                        statusDiv.textContent = data.message;
+                        // Recharger la page pour mettre à jour la liste
+                        setTimeout(() => location.reload(), 2000);
+                    }} else {{
+                        statusDiv.className = 'status error';
+                        statusDiv.textContent = 'Erreur: ' + data.message;
+                    }}
+                    setTimeout(() => {{
+                        statusDiv.style.display = 'none';
+                    }}, 3000);
+                }})
+                .catch(error => {{
+                    const statusDiv = document.getElementById('status');
+                    statusDiv.style.display = 'block';
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = 'Erreur: ' + error.message;
+                    setTimeout(() => {{
+                        statusDiv.style.display = 'none';
+                    }}, 3000);
+                }});
+            }}
+
+            // Ajouter une première étape au chargement
+            window.onload = function() {{
+                addStep();
+            }};
+        </script>
+    </body>
+    </html>
+    """
+
+@app.route('/processes/<filename>')
+def get_process(filename):
+    try:
+        with open(os.path.join('processes', filename), 'r', encoding='utf-8') as f:
+            return jsonify(json.load(f))
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 404
+
+@app.route('/activate-process', methods=['POST'])
+def activate_process():
+    try:
+        filename = request.form.get('filename')
+        if not filename:
+            return jsonify({"status": "error", "message": "Nom de fichier manquant"})
+
+        # Copier le fichier sélectionné vers le fichier actif
+        source_path = os.path.join('processes', filename)
+        target_path = 'process_garage.json' if 'garage' in filename else 'process.json'
+
+        with open(source_path, 'r', encoding='utf-8') as f:
+            process_data = json.load(f)
+
+        with open(target_path, 'w', encoding='utf-8') as f:
+            json.dump(process_data['steps'], f, ensure_ascii=False, indent=2)
+
+        return jsonify({
+            "status": "success",
+            "message": f"Processus activé avec succès!"
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
 @app.route('/process-editor', methods=['GET', 'POST'])
 def process_editor():
     if request.method == 'POST':
