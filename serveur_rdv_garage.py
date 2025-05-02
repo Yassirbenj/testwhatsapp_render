@@ -227,89 +227,56 @@ def process_creator():
     <html>
     <head>
         <title>Créateur de Processus</title>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-            body {{
+            body {
                 font-family: Arial, sans-serif;
                 margin: 0;
                 padding: 20px;
                 background-color: #f5f5f5;
-            }}
-            .container {{
+            }
+            .container {
                 max-width: 1200px;
                 margin: 0 auto;
-            }}
-            .process-list {{
-                margin-bottom: 20px;
+            }
+            .step {
                 background: white;
                 padding: 20px;
                 border-radius: 8px;
                 box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            }}
-            .process-item {{
-                padding: 10px;
-                border-bottom: 1px solid #eee;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-            }}
-            .process-item:last-child {{
-                border-bottom: none;
-            }}
-            .process-info {{
-                flex-grow: 1;
-            }}
-            .process-actions {{
+                margin-bottom: 20px;
+            }
+            .form-group {
+                margin-bottom: 15px;
+            }
+            .option-row {
                 display: flex;
                 gap: 10px;
-            }}
-            .process-name {{
-                font-weight: bold;
-                color: #333;
-            }}
-            .process-date {{
-                color: #666;
-                font-size: 0.9em;
-            }}
-            .process-type {{
-                background: #e0e0e0;
-                padding: 2px 8px;
-                border-radius: 12px;
-                font-size: 0.8em;
-                color: #666;
-            }}
-            .step-container {{
-                background: white;
-                padding: 20px;
-                border-radius: 8px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                margin-bottom: 20px;
-            }}
-            .form-group {{
-                margin-bottom: 15px;
-            }}
-            label {{
+                margin-bottom: 10px;
+            }
+            .option-row input[type="text"] {
+                flex: 2;
+            }
+            .option-row input[type="number"] {
+                flex: 1;
+            }
+            label {
                 display: block;
                 margin-bottom: 5px;
                 color: #333;
                 font-weight: bold;
-            }}
-            input[type="text"], textarea, select {{
+            }
+            input[type="text"], textarea, select {
                 width: 100%;
                 padding: 8px;
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 box-sizing: border-box;
-            }}
-            textarea {{
+            }
+            textarea {
                 height: 100px;
                 resize: vertical;
-            }}
-            .button-group {{
-                margin-top: 20px;
-            }}
-            button {{
+            }
+            button {
                 background-color: #4CAF50;
                 color: white;
                 padding: 10px 20px;
@@ -318,61 +285,16 @@ def process_creator():
                 cursor: pointer;
                 font-size: 16px;
                 margin-right: 10px;
-            }}
-            button:hover {{
+            }
+            button:hover {
                 background-color: #45a049;
-            }}
-            button.delete {{
+            }
+            button.btn-danger {
                 background-color: #f44336;
-            }}
-            button.delete:hover {{
+            }
+            button.btn-danger:hover {
                 background-color: #da190b;
-            }}
-            .status {{
-                margin-top: 10px;
-                padding: 10px;
-                border-radius: 4px;
-                display: none;
-            }}
-            .success {{
-                background-color: #dff0d8;
-                color: #3c763d;
-                border: 1px solid #d6e9c6;
-            }}
-            .error {{
-                background-color: #f2dede;
-                color: #a94442;
-                border: 1px solid #ebccd1;
-            }}
-            .step-header {{
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 15px;
-            }}
-            .step-number {{
-                font-size: 1.2em;
-                font-weight: bold;
-                color: #333;
-            }}
-            .expected-answers {{
-                display: flex;
-                flex-wrap: wrap;
-                gap: 10px;
-                margin-top: 10px;
-            }}
-            .answer-input {{
-                display: flex;
-                align-items: center;
-                gap: 5px;
-            }}
-            .answer-input input {{
-                width: auto;
-            }}
-            .answer-input button {{
-                padding: 5px 10px;
-                font-size: 14px;
-            }}
+            }
         </style>
     </head>
     <body>
@@ -426,10 +348,6 @@ def process_creator():
                         </div>
                         <div class="form-group" id="answerOptions${stepNumber}">
                             <!-- Les options de réponse seront ajoutées ici -->
-                        </div>
-                        <div class="form-group">
-                            <label>Prochaine étape:</label>
-                            <input type="number" name="steps[${stepNumber}][next_step]" min="1" value="${stepNumber + 1}">
                         </div>
                         <div class="form-group">
                             <label>Clé de sauvegarde:</label>
@@ -505,30 +423,18 @@ def process_creator():
                 container.appendChild(optionRow);
             }
 
-            // Ajouter le style pour les options
-            const style = document.createElement('style');
-            style.textContent = `
-                .option-row {
-                    display: flex;
-                    gap: 10px;
-                    margin-bottom: 10px;
-                }
-                .option-row input[type="text"] {
-                    flex: 2;
-                }
-                .option-row input[type="number"] {
-                    flex: 1;
-                }
-            `;
-            document.head.appendChild(style);
+            // Ajouter une première étape au chargement de la page
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('Page loaded, adding first step...');
+                addStep();
+            });
 
-            // Modifier la fonction de sauvegarde pour gérer les étapes suivantes multiples
+            // Gestion de la soumission du formulaire
             document.getElementById('processForm').onsubmit = function(e) {
                 e.preventDefault();
 
                 const formData = new FormData(this);
                 const steps = [];
-                let currentStep = null;
 
                 // Parcourir tous les champs du formulaire
                 for (let [key, value] of formData.entries()) {
@@ -595,12 +501,6 @@ def process_creator():
                     alert('Erreur: ' + error.message);
                 });
             };
-
-            // Ajouter une première étape au chargement de la page
-            document.addEventListener('DOMContentLoaded', function() {
-                console.log('Page loaded, adding first step...');
-                addStep();
-            });
         </script>
     </body>
     </html>
