@@ -160,6 +160,76 @@ user_data = {}
 # === FLASK SETUP ===
 app = Flask(__name__)
 
+@app.route('/privacy', methods=['GET'])
+def privacy_policy():
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Politique de Confidentialité</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 20px;
+            }
+            h1 {
+                color: #333;
+                text-align: center;
+            }
+            h2 {
+                color: #444;
+                margin-top: 30px;
+            }
+            p {
+                color: #666;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Politique de Confidentialité</h1>
+
+        <h2>1. Collecte des Informations</h2>
+        <p>Nous collectons les informations suivantes :</p>
+        <ul>
+            <li>Numéro de téléphone WhatsApp</li>
+            <li>Nom et prénom</li>
+            <li>Informations relatives à votre demande (service souhaité, modèle de véhicule, etc.)</li>
+        </ul>
+
+        <h2>2. Utilisation des Informations</h2>
+        <p>Les informations collectées sont utilisées pour :</p>
+        <ul>
+            <li>Gérer vos rendez-vous</li>
+            <li>Vous contacter concernant votre demande</li>
+            <li>Améliorer nos services</li>
+        </ul>
+
+        <h2>3. Protection des Informations</h2>
+        <p>Nous mettons en œuvre des mesures de sécurité pour protéger vos informations personnelles. Vos données sont stockées de manière sécurisée et ne sont accessibles qu'aux personnes autorisées.</p>
+
+        <h2>4. Partage des Informations</h2>
+        <p>Nous ne vendons, n'échangeons et ne transférons pas vos informations personnelles à des tiers. Cela ne comprend pas les tierces parties de confiance qui nous aident à exploiter notre site web ou à mener nos activités, tant que ces parties conviennent de garder ces informations confidentielles.</p>
+
+        <h2>5. Cookies</h2>
+        <p>Notre site n'utilise pas de cookies.</p>
+
+        <h2>6. Consentement</h2>
+        <p>En utilisant notre service, vous consentez à notre politique de confidentialité.</p>
+
+        <h2>7. Modifications</h2>
+        <p>Nous nous réservons le droit de modifier cette politique de confidentialité à tout moment. Les modifications prendront effet dès leur publication sur cette page.</p>
+
+        <h2>8. Contact</h2>
+        <p>Si vous avez des questions concernant cette politique de confidentialité, vous pouvez nous contacter via WhatsApp.</p>
+    </body>
+    </html>
+    """
+
 @app.route('/webhook', methods=['GET', 'POST'])
 def webhook():
     if request.method == 'GET':
