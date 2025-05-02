@@ -4,6 +4,13 @@ process_garage.json
 process.json
 processes_backup/
 
+# Environment variables and credentials
+.env
+*.json
+whatsappbotleads-*.json
+credentials.json
+token.json
+
 # Python
 __pycache__/
 *.py[cod]
@@ -47,6 +54,3 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
-
-whatsappbotleads-5eef4888f75c.json
-whatsappbotleads-15ea5fa67a1e.json

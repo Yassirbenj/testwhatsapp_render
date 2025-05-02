@@ -477,8 +477,14 @@ def process_creator():
                     container.innerHTML = `
                         <label>Options de réponse:</label>
                         <div id="options${stepNumber}">
-                            <input type="text" name="steps[${stepNumber}][options][]" placeholder="Option 1">
-                            <input type="text" name="steps[${stepNumber}][options][]" placeholder="Option 2">
+                            <div class="option-row">
+                                <input type="text" name="steps[${stepNumber}][options][]" placeholder="Option 1">
+                                <input type="number" name="steps[${stepNumber}][next_steps][]" min="1" placeholder="Étape suivante" value="${stepNumber + 1}">
+                            </div>
+                            <div class="option-row">
+                                <input type="text" name="steps[${stepNumber}][options][]" placeholder="Option 2">
+                                <input type="number" name="steps[${stepNumber}][next_steps][]" min="1" placeholder="Étape suivante" value="${stepNumber + 1}">
+                            </div>
                         </div>
                         <button type="button" onclick="addOption(${stepNumber})" class="btn">Ajouter une option</button>
                     `;
@@ -490,12 +496,105 @@ def process_creator():
             function addOption(stepNumber) {
                 const container = document.getElementById(`options${stepNumber}`);
                 const optionCount = container.children.length + 1;
-                const input = document.createElement('input');
-                input.type = 'text';
-                input.name = `steps[${stepNumber}][options][]`;
-                input.placeholder = `Option ${optionCount}`;
-                container.appendChild(input);
+                const optionRow = document.createElement('div');
+                optionRow.className = 'option-row';
+                optionRow.innerHTML = `
+                    <input type="text" name="steps[${stepNumber}][options][]" placeholder="Option ${optionCount}">
+                    <input type="number" name="steps[${stepNumber}][next_steps][]" min="1" placeholder="Étape suivante" value="${stepNumber + 1}">
+                `;
+                container.appendChild(optionRow);
             }
+
+            // Ajouter le style pour les options
+            const style = document.createElement('style');
+            style.textContent = `
+                .option-row {
+                    display: flex;
+                    gap: 10px;
+                    margin-bottom: 10px;
+                }
+                .option-row input[type="text"] {
+                    flex: 2;
+                }
+                .option-row input[type="number"] {
+                    flex: 1;
+                }
+            `;
+            document.head.appendChild(style);
+
+            // Modifier la fonction de sauvegarde pour gérer les étapes suivantes multiples
+            document.getElementById('processForm').onsubmit = function(e) {
+                e.preventDefault();
+
+                const formData = new FormData(this);
+                const steps = [];
+                let currentStep = null;
+
+                // Parcourir tous les champs du formulaire
+                for (let [key, value] of formData.entries()) {
+                    const match = key.match(/steps\[(\d+)\]\[(\w+)\](?:\[\])?/);
+                    if (match) {
+                        const stepNumber = parseInt(match[1]);
+                        const field = match[2];
+
+                        if (!steps[stepNumber - 1]) {
+                            steps[stepNumber - 1] = {
+                                message: '',
+                                expected_answers: '',
+                                next_step: {},
+                                save_as: ''
+                            };
+                        }
+
+                        if (field === 'options' || field === 'next_steps') {
+                            if (!steps[stepNumber - 1].options) {
+                                steps[stepNumber - 1].options = [];
+                                steps[stepNumber - 1].next_steps = [];
+                            }
+                            if (field === 'options') {
+                                steps[stepNumber - 1].options.push(value);
+                            } else {
+                                steps[stepNumber - 1].next_steps.push(parseInt(value));
+                            }
+                        } else {
+                            steps[stepNumber - 1][field] = value;
+                        }
+                    }
+                }
+
+                // Construire le next_step pour les choix multiples
+                steps.forEach((step, index) => {
+                    if (step.expected_answers === 'multiple_choice' && step.options) {
+                        step.next_step = {};
+                        step.options.forEach((option, i) => {
+                            step.next_step[option] = step.next_steps[i];
+                        });
+                        delete step.options;
+                        delete step.next_steps;
+                    }
+                });
+
+                // Envoyer les données au serveur
+                fetch('/process-creator', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `process_data=${encodeURIComponent(JSON.stringify(steps))}&process_type=${formData.get('processType')}&process_name=${encodeURIComponent(formData.get('processName'))}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert('Processus sauvegardé avec succès!');
+                        location.reload();
+                    } else {
+                        alert('Erreur: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    alert('Erreur: ' + error.message);
+                });
+            };
 
             // Ajouter une première étape au chargement de la page
             document.addEventListener('DOMContentLoaded', function() {
