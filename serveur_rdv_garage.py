@@ -157,6 +157,17 @@ with open('process.json', 'r') as f:
 # Stocker l'état et les réponses de chaque utilisateur
 user_data = {}
 
+# Nettoyer les anciennes conversations (plus de 24h)
+def cleanup_old_conversations():
+    current_time = datetime.now()
+    to_delete = []
+    for sender, data in user_data.items():
+        if 'last_activity' in data:
+            if (current_time - data['last_activity']).total_seconds() > 86400:  # 24 heures
+                to_delete.append(sender)
+    for sender in to_delete:
+        del user_data[sender]
+
 # === FLASK SETUP ===
 app = Flask(__name__)
 
@@ -250,6 +261,16 @@ def webhook():
                         text = message.get('text', {}).get('body')
                         sender = message['from']
 
+                        # Nettoyer les anciennes conversations
+                        cleanup_old_conversations()
+
+                        # Gérer la commande de réinitialisation
+                        if text.lower() in ['reset', 'recommencer', 'nouveau', 'start']:
+                            if sender in user_data:
+                                del user_data[sender]
+                            send_message(sender, "Bienvenue ! Que souhaitez-vous faire ?\n1️⃣ Prendre rendez-vous au garage\n2️⃣ S'informer sur nos formations")
+                            return "OK", 200
+
                         if sender not in user_data:
                             # Premier message - choisir le processus
                             if text.lower() == "1":
@@ -257,7 +278,8 @@ def webhook():
                                     'state': 'initial',
                                     'current_step': 0,
                                     'data': {},
-                                    'process': process_garage
+                                    'process': process_garage,
+                                    'last_activity': datetime.now()
                                 }
                                 send_step_message(sender, 0, process_garage)
                             elif text.lower() == "2":
@@ -265,13 +287,17 @@ def webhook():
                                     'state': 'initial',
                                     'current_step': 0,
                                     'data': {},
-                                    'process': process_formation
+                                    'process': process_formation,
+                                    'last_activity': datetime.now()
                                 }
                                 send_step_message(sender, 0, process_formation)
                             else:
                                 # Message initial pour choisir le processus
                                 send_message(sender, "Bienvenue ! Que souhaitez-vous faire ?\n1️⃣ Prendre rendez-vous au garage\n2️⃣ S'informer sur nos formations")
                             return "OK", 200
+
+                        # Mettre à jour le timestamp de dernière activité
+                        user_data[sender]['last_activity'] = datetime.now()
 
                         state = user_data[sender]['state']
                         step_index = user_data[sender]['current_step']
