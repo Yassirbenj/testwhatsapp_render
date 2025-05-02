@@ -222,7 +222,7 @@ def process_creator():
     # Trier les processus par date de création (plus récent en premier)
     processes.sort(key=lambda x: x['created_at'], reverse=True)
 
-    return f"""
+    return '''
     <!DOCTYPE html>
     <html>
     <head>
@@ -377,296 +377,135 @@ def process_creator():
     </head>
     <body>
         <div class="container">
-            <h1>Créateur de Processus WhatsApp</h1>
+            <h1>Créateur de Processus</h1>
 
-            <div class="process-list">
-                <h2>Processus existants</h2>
-                {''.join(f'''
-                    <div class="process-item">
-                        <div class="process-info">
-                            <div class="process-name">{process['name']}</div>
-                            <div class="process-date">Créé le {process['created_at']}</div>
-                        </div>
-                        <div class="process-actions">
-                            <span class="process-type">{process['type']}</span>
-                            <button onclick="loadProcess('{process['filename']}')">Charger</button>
-                            <button onclick="activateProcess('{process['filename']}')" class="activate">Activer</button>
-                        </div>
-                    </div>
-                ''' for process in processes)}
-            </div>
+            <form id="processForm" method="POST">
+                <div class="form-group">
+                    <label for="processName">Nom du processus:</label>
+                    <input type="text" id="processName" name="processName" required>
+                </div>
 
-            <div class="form-group">
-                <label for="processName">Nom du processus:</label>
-                <input type="text" id="processName" placeholder="Entrez un nom pour ce processus">
-            </div>
+                <div class="form-group">
+                    <label for="processType">Type de processus:</label>
+                    <select id="processType" name="processType" required>
+                        <option value="garage">Garage</option>
+                        <option value="formation">Formation</option>
+                    </select>
+                </div>
 
-            <div class="form-group">
-                <label for="processType">Type de Processus:</label>
-                <select id="processType">
-                    <option value="garage">Processus Garage</option>
-                    <option value="formation">Processus Formation</option>
-                </select>
-            </div>
+                <div id="stepsContainer">
+                    <!-- Les étapes seront ajoutées ici -->
+                </div>
 
-            <div id="stepsContainer"></div>
-
-            <div class="button-group">
-                <button type="button" onclick="addStep()">Ajouter une étape</button>
-                <button type="button" onclick="saveProcess()">Sauvegarder le processus</button>
-            </div>
-
-            <div id="status" class="status"></div>
+                <button type="button" onclick="addStep()" class="btn">Ajouter une étape</button>
+                <button type="submit" class="btn">Sauvegarder le processus</button>
+            </form>
         </div>
 
         <script>
-            // Déclarer steps comme variable globale
             let steps = [];
+            let stepCounter = 0;
 
-            // Fonction pour ajouter une étape
-            function addStep() {{
-                console.log('Adding step...'); // Debug log
+            function addStep() {
+                console.log('Adding step...');
                 const stepNumber = steps.length + 1;
                 const stepHtml = `
-                    <div class="step-container" id="step-${{stepNumber}}">
-                        <div class="step-header">
-                            <span class="step-number">Étape ${{stepNumber}}</span>
-                            <button type="button" class="delete" onclick="deleteStep(${{stepNumber}})">Supprimer</button>
-                        </div>
+                    <div class="step" id="step${stepNumber}">
+                        <h3>Étape ${stepNumber}</h3>
                         <div class="form-group">
                             <label>Message:</label>
-                            <textarea id="message-${{stepNumber}}" placeholder="Entrez le message de cette étape"></textarea>
+                            <textarea name="steps[${stepNumber}][message]" required></textarea>
                         </div>
                         <div class="form-group">
                             <label>Type de réponse attendue:</label>
-                            <select id="answerType-${{stepNumber}}" onchange="toggleExpectedAnswers(${{stepNumber}})">
+                            <select name="steps[${stepNumber}][expected_answers]" onchange="updateAnswerOptions(${stepNumber})">
                                 <option value="free_text">Texte libre</option>
-                                <option value="choices">Choix multiples</option>
-                                <option value="no_reply">Pas de réponse attendue</option>
+                                <option value="no_reply">Pas de réponse</option>
+                                <option value="multiple_choice">Choix multiples</option>
                             </select>
                         </div>
-                        <div id="expectedAnswers-${{stepNumber}}" class="form-group" style="display: none;">
-                            <label>Réponses attendues:</label>
-                            <div class="expected-answers" id="answersList-${{stepNumber}}">
-                                <div class="answer-input">
-                                    <input type="text" placeholder="Option">
-                                    <button type="button" onclick="addAnswer(${{stepNumber}})">+</button>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Clé de sauvegarde (optionnel):</label>
-                            <input type="text" id="saveAs-${{stepNumber}}" placeholder="ex: nom, email, etc.">
+                        <div class="form-group" id="answerOptions${stepNumber}">
+                            <!-- Les options de réponse seront ajoutées ici -->
                         </div>
                         <div class="form-group">
                             <label>Prochaine étape:</label>
-                            <input type="number" id="nextStep-${{stepNumber}}" min="1" value="${{stepNumber + 1}}">
+                            <input type="number" name="steps[${stepNumber}][next_step]" min="1" value="${stepNumber + 1}">
                         </div>
+                        <div class="form-group">
+                            <label>Clé de sauvegarde:</label>
+                            <input type="text" name="steps[${stepNumber}][save_as]">
+                        </div>
+                        <button type="button" onclick="removeStep(${stepNumber})" class="btn btn-danger">Supprimer cette étape</button>
                     </div>
                 `;
                 document.getElementById('stepsContainer').insertAdjacentHTML('beforeend', stepHtml);
                 steps.push(stepNumber);
-                console.log('Step added:', stepNumber); // Debug log
-            }}
+                console.log('Step added:', stepNumber);
+            }
 
-            function deleteStep(stepNumber) {{
-                const stepElement = document.getElementById(`step-${{stepNumber}}`);
-                stepElement.remove();
-                steps = steps.filter(s => s !== stepNumber);
-                updateStepNumbers();
-            }}
+            function removeStep(stepNumber) {
+                const stepElement = document.getElementById(`step${stepNumber}`);
+                if (stepElement) {
+                    stepElement.remove();
+                    steps = steps.filter(s => s !== stepNumber);
+                    updateStepNumbers();
+                }
+            }
 
-            function updateStepNumbers() {{
-                steps.forEach((oldNumber, index) => {{
+            function updateStepNumbers() {
+                const stepElements = document.querySelectorAll('.step');
+                stepElements.forEach((element, index) => {
                     const newNumber = index + 1;
-                    const stepElement = document.getElementById(`step-${{oldNumber}}`);
-                    if (stepElement) {{
-                        stepElement.id = `step-${{newNumber}}`;
-                        stepElement.querySelector('.step-number').textContent = `Étape ${{newNumber}}`;
-                        stepElement.querySelector('.delete').setAttribute('onclick', `deleteStep(${{newNumber}})`);
+                    element.id = `step${newNumber}`;
+                    element.querySelector('h3').textContent = `Étape ${newNumber}`;
 
-                        // Mettre à jour les IDs des champs
-                        const messageField = stepElement.querySelector(`textarea`);
-                        messageField.id = `message-${{newNumber}}`;
+                    // Mettre à jour les noms des champs
+                    const inputs = element.querySelectorAll('input, textarea, select');
+                    inputs.forEach(input => {
+                        if (input.name) {
+                            input.name = input.name.replace(/steps\[\d+\]/, `steps[${newNumber}]`);
+                        }
+                    });
+                });
+            }
 
-                        const answerTypeField = stepElement.querySelector(`select`);
-                        answerTypeField.id = `answerType-${{newNumber}}`;
-                        answerTypeField.setAttribute('onchange', `toggleExpectedAnswers(${{newNumber}})`);
+            function updateAnswerOptions(stepNumber) {
+                const select = document.querySelector(`#step${stepNumber} select[name="steps[${stepNumber}][expected_answers]"]`);
+                const container = document.getElementById(`answerOptions${stepNumber}`);
 
-                        const expectedAnswersDiv = stepElement.querySelector(`#expectedAnswers-${{oldNumber}}`);
-                        expectedAnswersDiv.id = `expectedAnswers-${{newNumber}}`;
+                if (select.value === 'multiple_choice') {
+                    container.innerHTML = `
+                        <label>Options de réponse:</label>
+                        <div id="options${stepNumber}">
+                            <input type="text" name="steps[${stepNumber}][options][]" placeholder="Option 1">
+                            <input type="text" name="steps[${stepNumber}][options][]" placeholder="Option 2">
+                        </div>
+                        <button type="button" onclick="addOption(${stepNumber})" class="btn">Ajouter une option</button>
+                    `;
+                } else {
+                    container.innerHTML = '';
+                }
+            }
 
-                        const answersList = stepElement.querySelector(`#answersList-${{oldNumber}}`);
-                        answersList.id = `answersList-${{newNumber}}`;
+            function addOption(stepNumber) {
+                const container = document.getElementById(`options${stepNumber}`);
+                const optionCount = container.children.length + 1;
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.name = `steps[${stepNumber}][options][]`;
+                input.placeholder = `Option ${optionCount}`;
+                container.appendChild(input);
+            }
 
-                        const saveAsField = stepElement.querySelector(`input[type="text"]`);
-                        saveAsField.id = `saveAs-${{newNumber}}`;
-
-                        const nextStepField = stepElement.querySelector(`input[type="number"]`);
-                        nextStepField.id = `nextStep-${{newNumber}}`;
-                        nextStepField.value = newNumber + 1;
-                    }}
-                }});
-            }}
-
-            function toggleExpectedAnswers(stepNumber) {{
-                const answerType = document.getElementById(`answerType-${{stepNumber}}`).value;
-                const expectedAnswersDiv = document.getElementById(`expectedAnswers-${{stepNumber}}`);
-                expectedAnswersDiv.style.display = answerType === 'choices' ? 'block' : 'none';
-            }}
-
-            function addAnswer(stepNumber) {{
-                const answersList = document.getElementById(`answersList-${{stepNumber}}`);
-                const newAnswer = document.createElement('div');
-                newAnswer.className = 'answer-input';
-                newAnswer.innerHTML = `
-                    <input type="text" placeholder="Option">
-                    <button onclick="this.parentElement.remove()">-</button>
-                `;
-                answersList.appendChild(newAnswer);
-            }}
-
-            function loadProcess(filename) {{
-                fetch(`/processes/${{filename}}`)
-                    .then(response => response.json())
-                    .then(data => {{
-                        // Vider les étapes existantes
-                        steps = [];
-                        document.getElementById('stepsContainer').innerHTML = '';
-
-                        // Remplir le nom et le type
-                        document.getElementById('processName').value = data.name || '';
-                        document.getElementById('processType').value = filename.includes('garage') ? 'garage' : 'formation';
-
-                        // Ajouter les étapes
-                        data.steps.forEach(step => {{
-                            addStep();
-                            const stepNumber = steps[steps.length - 1];
-
-                            document.getElementById(`message-${{stepNumber}}`).value = step.message;
-                            document.getElementById(`answerType-${{stepNumber}}`).value =
-                                Array.isArray(step.expected_answers) ? 'choices' : step.expected_answers;
-
-                            if (Array.isArray(step.expected_answers)) {{
-                                const answersList = document.getElementById(`answersList-${{stepNumber}}`);
-                                answersList.innerHTML = '';
-                                step.expected_answers.forEach(answer => {{
-                                    const newAnswer = document.createElement('div');
-                                    newAnswer.className = 'answer-input';
-                                    newAnswer.innerHTML = `
-                                        <input type="text" value="${{answer}}">
-                                        <button onclick="this.parentElement.remove()">-</button>
-                                    `;
-                                    answersList.appendChild(newAnswer);
-                                }});
-                                document.getElementById(`expectedAnswers-${{stepNumber}}`).style.display = 'block';
-                            }}
-
-                            document.getElementById(`saveAs-${{stepNumber}}`).value = step.save_as || '';
-                            document.getElementById(`nextStep-${{stepNumber}}`).value = step.next_step;
-                        }});
-                    }})
-                    .catch(error => {{
-                        console.error('Erreur lors du chargement:', error);
-                    }});
-            }}
-
-            function activateProcess(filename) {{
-                fetch('/activate-process', {{
-                    method: 'POST',
-                    headers: {{
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    }},
-                    body: `filename=${{filename}}`
-                }})
-                .then(response => response.json())
-                .then(data => {{
-                    const statusDiv = document.getElementById('status');
-                    statusDiv.style.display = 'block';
-                    if (data.status === 'success') {{
-                        statusDiv.className = 'status success';
-                        statusDiv.textContent = data.message;
-                    }} else {{
-                        statusDiv.className = 'status error';
-                        statusDiv.textContent = 'Erreur: ' + data.message;
-                    }}
-                    setTimeout(() => {{
-                        statusDiv.style.display = 'none';
-                    }}, 3000);
-                }})
-                .catch(error => {{
-                    console.error('Erreur lors de l\'activation:', error);
-                }});
-            }}
-
-            function saveProcess() {{
-                const processType = document.getElementById('processType').value;
-                const processName = document.getElementById('processName').value;
-                const process = [];
-
-                steps.forEach(stepNumber => {{
-                    const step = {{
-                        message: document.getElementById(`message-${{stepNumber}}`).value,
-                        expected_answers: document.getElementById(`answerType-${{stepNumber}}`).value,
-                        next_step: parseInt(document.getElementById(`nextStep-${{stepNumber}}`).value),
-                        save_as: document.getElementById(`saveAs-${{stepNumber}}`).value || null
-                    }};
-
-                    if (step.expected_answers === 'choices') {{
-                        const answers = Array.from(document.getElementById(`answersList-${{stepNumber}}`).querySelectorAll('input'))
-                            .map(input => input.value)
-                            .filter(value => value.trim() !== '');
-                        step.expected_answers = answers;
-                    }}
-
-                    process.push(step);
-                }});
-
-                // Envoyer au serveur
-                fetch('/process-creator', {{
-                    method: 'POST',
-                    headers: {{
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    }},
-                    body: `process_data=${{encodeURIComponent(JSON.stringify(process))}}&process_type=${{processType}}&process_name=${{encodeURIComponent(processName)}}`
-                }})
-                .then(response => response.json())
-                .then(data => {{
-                    const statusDiv = document.getElementById('status');
-                    statusDiv.style.display = 'block';
-                    if (data.status === 'success') {{
-                        statusDiv.className = 'status success';
-                        statusDiv.textContent = data.message;
-                        // Recharger la page pour mettre à jour la liste
-                        setTimeout(() => location.reload(), 2000);
-                    }} else {{
-                        statusDiv.className = 'status error';
-                        statusDiv.textContent = 'Erreur: ' + data.message;
-                    }}
-                    setTimeout(() => {{
-                        statusDiv.style.display = 'none';
-                    }}, 3000);
-                }})
-                .catch(error => {{
-                    const statusDiv = document.getElementById('status');
-                    statusDiv.style.display = 'block';
-                    statusDiv.className = 'status error';
-                    statusDiv.textContent = 'Erreur: ' + error.message;
-                    setTimeout(() => {{
-                        statusDiv.style.display = 'none';
-                    }}, 3000);
-                }});
-            }}
-
-            // Initialiser la page
-            document.addEventListener('DOMContentLoaded', function() {{
-                console.log('Page loaded, adding first step...'); // Debug log
+            // Ajouter une première étape au chargement de la page
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('Page loaded, adding first step...');
                 addStep();
-            }});
+            });
         </script>
     </body>
     </html>
-    """
+    '''
 
 @app.route('/processes/<filename>')
 def get_process(filename):
