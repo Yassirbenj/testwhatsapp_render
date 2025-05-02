@@ -309,9 +309,28 @@ def send_message(to_number, message):
             "body": message
         }
     }
+
+    # Vérification des variables d'environnement
+    if not ACCESS_TOKEN:
+        print("ERROR: ACCESS_TOKEN is not set in environment variables")
+        return
+    if not PHONE_NUMBER_ID:
+        print("ERROR: PHONE_NUMBER_ID is not set in environment variables")
+        return
+
+    print(f"Debug - Using PHONE_NUMBER_ID: {PHONE_NUMBER_ID}")
+    print(f"Debug - ACCESS_TOKEN starts with: {ACCESS_TOKEN[:10]}...")
+
     response = requests.post(url, headers=headers, data=json.dumps(payload))
     print("Réponse envoi message:", response.status_code, response.json())
 
+    if response.status_code == 400:
+        error_data = response.json().get('error', {})
+        print(f"Error details: {error_data.get('message')}")
+        print(f"Error type: {error_data.get('type')}")
+        print(f"Error code: {error_data.get('code')}")
+        if 'error_data' in error_data:
+            print(f"Additional error data: {error_data['error_data']}")
 
 # === RUN APP ===
 if __name__ == '__main__':
