@@ -11,7 +11,14 @@ from datetime import datetime, timedelta, time
 import pytz
 import locale
 import os
-locale.setlocale(locale.LC_TIME, 'fr_FR.UTF-8')
+try:
+    locale.setlocale(locale.LC_TIME, 'fr_FR.UTF-8')
+except locale.Error:
+    try:
+        locale.setlocale(locale.LC_TIME, 'fr_FR')
+    except locale.Error:
+        locale.setlocale(locale.LC_TIME, 'en_US.UTF-8')
+        print("Warning: French locale not available, falling back to English")
 
 app = Flask(__name__)
 
@@ -203,7 +210,7 @@ def webhook():
                             return "OK", 200
 
                         elif step_index >= len(process):
-                            # Ici c’est fini, on lance la suite spéciale (prise de rendez-vous par exemple)
+                            # Ici c'est fini, on lance la suite spéciale (prise de rendez-vous par exemple)
                             if state=='initial':
                                 print(f"Utilisateur {sender} a terminé le process principal. Passage à la suite.")
 
