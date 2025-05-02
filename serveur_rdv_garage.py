@@ -9,16 +9,40 @@ from googleapiclient.discovery import build
 from google.oauth2 import service_account
 from datetime import datetime, timedelta, time
 import pytz
-import locale
 import os
-try:
-    locale.setlocale(locale.LC_TIME, 'fr_FR.UTF-8')
-except locale.Error:
-    try:
-        locale.setlocale(locale.LC_TIME, 'fr_FR')
-    except locale.Error:
-        locale.setlocale(locale.LC_TIME, 'en_US.UTF-8')
-        print("Warning: French locale not available, falling back to English")
+
+
+# Dictionnaires pour la traduction des jours et mois en français
+JOURS = {
+    'Monday': 'Lundi',
+    'Tuesday': 'Mardi',
+    'Wednesday': 'Mercredi',
+    'Thursday': 'Jeudi',
+    'Friday': 'Vendredi',
+    'Saturday': 'Samedi',
+    'Sunday': 'Dimanche'
+}
+
+MOIS = {
+    'January': 'Janvier',
+    'February': 'Février',
+    'March': 'Mars',
+    'April': 'Avril',
+    'May': 'Mai',
+    'June': 'Juin',
+    'July': 'Juillet',
+    'August': 'Août',
+    'September': 'Septembre',
+    'October': 'Octobre',
+    'November': 'Novembre',
+    'December': 'Décembre'
+}
+
+def format_date_fr(date):
+    """Formate une date en français sans dépendre de la locale"""
+    jour = JOURS[date.strftime('%A')]
+    mois = MOIS[date.strftime('%B')]
+    return f"{jour} {date.day} {mois} {date.strftime('%H:%M')}"
 
 app = Flask(__name__)
 
@@ -242,7 +266,7 @@ def webhook():
                                         user_data[sender]['slots'] = slots
                                         message = "Voici nos créneaux disponibles :\n"
                                         for idx, (start, _) in enumerate(slots, 1):
-                                            message += f"{idx}️⃣ {start.strftime('%A %d %B %H:%M')}\n"
+                                            message += f"{idx}️⃣ {format_date_fr(start)}\n"
                                         message += "\nMerci de répondre par 1, 2 ou 3 pour choisir votre créneau."
                                         send_message(sender, message)
                                         user_data[sender]['state'] = 'choose_slot'
@@ -257,7 +281,7 @@ def webhook():
 
                                     create_appointment(sender, selected_start, selected_end)
 
-                                    send_message(sender, f"✅ Votre rendez-vous est confirmé pour le {selected_start.strftime('%A %d %B à %H:%M')} ! Merci et à bientôt 🚗")
+                                    send_message(sender, f"✅ Votre rendez-vous est confirmé pour le {format_date_fr(selected_start)} ! Merci et à bientôt 🚗")
                                     user_data[sender]['state'] = 'completed'
 
                                 else:
