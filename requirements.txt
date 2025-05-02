@@ -10,5 +10,3 @@ requests
 python-dotenv
 requests
 datetime
-locale
-os
