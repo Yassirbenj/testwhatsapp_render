@@ -295,11 +295,55 @@ def process_creator():
             button.btn-danger:hover {
                 background-color: #da190b;
             }
+            .process-list {
+                margin-bottom: 20px;
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .process-item {
+                padding: 10px;
+                border-bottom: 1px solid #eee;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            .process-item:last-child {
+                border-bottom: none;
+            }
+            .process-info {
+                flex-grow: 1;
+            }
+            .process-actions {
+                display: flex;
+                gap: 10px;
+            }
+            .process-name {
+                font-weight: bold;
+                color: #333;
+            }
+            .process-date {
+                color: #666;
+                font-size: 0.9em;
+            }
+            .process-type {
+                background: #e0e0e0;
+                padding: 2px 8px;
+                border-radius: 12px;
+                font-size: 0.8em;
+                color: #666;
+            }
         </style>
     </head>
     <body>
         <div class="container">
             <h1>Créateur de Processus</h1>
+
+            <div class="process-list">
+                <h2>Processus existants</h2>
+                {''.join(f'<div class="process-item"><div class="process-info"><div class="process-name">{process["name"]}</div><div class="process-date">Créé le {process["created_at"]}</div></div><div class="process-actions"><span class="process-type">{process["type"]}</span><button onclick="loadProcess(\'{process["filename"]}\')">Charger</button><button onclick="activateProcess(\'{process["filename"]}\')" class="activate">Activer</button></div></div>' for process in processes)}
+            </div>
 
             <form id="processForm" method="POST">
                 <div class="form-group">
@@ -501,6 +545,77 @@ def process_creator():
                     alert('Erreur: ' + error.message);
                 });
             };
+
+            function loadProcess(filename) {
+                fetch(`/processes/${filename}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        // Vider les étapes existantes
+                        steps = [];
+                        document.getElementById('stepsContainer').innerHTML = '';
+
+                        // Remplir le nom et le type
+                        document.getElementById('processName').value = data.name || '';
+                        document.getElementById('processType').value = filename.includes('garage') ? 'garage' : 'formation';
+
+                        // Ajouter les étapes
+                        data.steps.forEach(step => {
+                            addStep();
+                            const stepNumber = steps[steps.length - 1];
+
+                            document.querySelector(`#step${stepNumber} textarea[name="steps[${stepNumber}][message]"]`).value = step.message;
+                            document.querySelector(`#step${stepNumber} select[name="steps[${stepNumber}][expected_answers]"]`).value =
+                                typeof step.next_step === 'object' ? 'multiple_choice' : step.expected_answers;
+
+                            if (typeof step.next_step === 'object') {
+                                updateAnswerOptions(stepNumber);
+                                const options = Object.keys(step.next_step);
+                                const nextSteps = Object.values(step.next_step);
+
+                                const container = document.getElementById(`options${stepNumber}`);
+                                container.innerHTML = '';
+
+                                options.forEach((option, index) => {
+                                    const optionRow = document.createElement('div');
+                                    optionRow.className = 'option-row';
+                                    optionRow.innerHTML = `
+                                        <input type="text" name="steps[${stepNumber}][options][]" value="${option}">
+                                        <input type="number" name="steps[${stepNumber}][next_steps][]" min="1" value="${nextSteps[index]}">
+                                    `;
+                                    container.appendChild(optionRow);
+                                });
+                            }
+
+                            document.querySelector(`#step${stepNumber} input[name="steps[${stepNumber}][save_as]"]`).value = step.save_as || '';
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Erreur lors du chargement:', error);
+                        alert('Erreur lors du chargement du processus');
+                    });
+            }
+
+            function activateProcess(filename) {
+                fetch('/activate-process', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `filename=${filename}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert('Processus activé avec succès!');
+                    } else {
+                        alert('Erreur: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Erreur lors de l\'activation:', error);
+                    alert('Erreur lors de l\'activation du processus');
+                });
+            }
         </script>
     </body>
     </html>
