@@ -1,0 +1,69 @@
+{
+    "name": "Processus Garage - Exemple",
+    "created_at": "20240315_000000",
+    "steps": [
+        {
+            "message": "Bonjour ! Je suis l'assistant du garage. Pour vous aider au mieux, j'ai besoin de quelques informations.\n\nQuel est votre nom complet ?",
+            "expected_answers": "free_text",
+            "next_step": 2,
+            "save_as": "Nom complet"
+        },
+        {
+            "message": "Quel type de service souhaitez-vous ?\n1️⃣ Révision\n2️⃣ Réparation\n3️⃣ Diagnostic\n4️⃣ Autre",
+            "expected_answers": ["1", "2", "3", "4"],
+            "next_step": {
+                "1": 3,
+                "2": 4,
+                "3": 5,
+                "4": 6
+            },
+            "save_as": "Service souhaité"
+        },
+        {
+            "message": "Pour votre révision, avez-vous une préférence de date ?\n1️⃣ Le plus tôt possible\n2️⃣ Dans les prochains jours\n3️⃣ Plus tard",
+            "expected_answers": ["1", "2", "3"],
+            "next_step": 7,
+            "save_as": "Préférence date révision"
+        },
+        {
+            "message": "Pour votre réparation, pouvez-vous me décrire le problème que vous rencontrez ?",
+            "expected_answers": "free_text",
+            "next_step": 7,
+            "save_as": "Description problème"
+        },
+        {
+            "message": "Pour le diagnostic, avez-vous remarqué des symptômes particuliers ?",
+            "expected_answers": "free_text",
+            "next_step": 7,
+            "save_as": "Symptômes"
+        },
+        {
+            "message": "Pouvez-vous me préciser votre demande ?",
+            "expected_answers": "free_text",
+            "next_step": 7,
+            "save_as": "Autre demande"
+        },
+        {
+            "message": "Quel est le modèle de votre véhicule ?",
+            "expected_answers": "free_text",
+            "next_step": 8,
+            "save_as": "Modèle véhicule"
+        },
+        {
+            "message": "Quelle est l'année de votre véhicule ?",
+            "expected_answers": "free_text",
+            "next_step": 9,
+            "save_as": "Année véhicule"
+        },
+        {
+            "message": "Merci pour ces informations ! Je vais maintenant vous proposer des créneaux disponibles pour votre rendez-vous.",
+            "expected_answers": "no_reply",
+            "next_step": 10
+        },
+        {
+            "message": "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)",
+            "expected_answers": "free_text",
+            "next_step": 99
+        }
+    ]
+}

@@ -1,7 +1,52 @@
+# Process files
+processes/
+process_garage.json
+process.json
+processes_backup/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+
+# Logs
+*.log
+
+# System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
 whatsappbotleads-5eef4888f75c.json
 whatsappbotleads-15ea5fa67a1e.json
-
-__pycache__/
-*.pyc
-*.pyo
-.env

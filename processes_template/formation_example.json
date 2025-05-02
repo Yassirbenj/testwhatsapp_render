@@ -1,0 +1,70 @@
+{
+    "name": "Processus Formation - Exemple",
+    "created_at": "20240315_000000",
+    "steps": [
+        {
+            "message": "Bonjour ! Je suis l'assistant des formations. Pour vous aider à trouver la formation qui vous convient, j'ai besoin de quelques informations.\n\nQuel est votre nom complet ?",
+            "expected_answers": "free_text",
+            "next_step": 2,
+            "save_as": "Nom complet"
+        },
+        {
+            "message": "Quel type de formation vous intéresse ?\n1️⃣ Formation initiale\n2️⃣ Formation continue\n3️⃣ Formation professionnelle\n4️⃣ Autre",
+            "expected_answers": ["1", "2", "3", "4"],
+            "next_step": {
+                "1": 3,
+                "2": 4,
+                "3": 5,
+                "4": 6
+            },
+            "save_as": "Type de formation"
+        },
+        {
+            "message": "Pour la formation initiale, quel est votre niveau d'études actuel ?\n1️⃣ Bac\n2️⃣ Bac+2\n3️⃣ Bac+3\n4️⃣ Bac+4/5",
+            "expected_answers": ["1", "2", "3", "4"],
+            "next_step": 7,
+            "save_as": "Niveau études"
+        },
+        {
+            "message": "Pour la formation continue, êtes-vous actuellement en poste ?\n1️⃣ Oui\n2️⃣ Non",
+            "expected_answers": ["1", "2"],
+            "next_step": 7,
+            "save_as": "Statut professionnel"
+        },
+        {
+            "message": "Pour la formation professionnelle, quel est votre secteur d'activité ?",
+            "expected_answers": "free_text",
+            "next_step": 7,
+            "save_as": "Secteur d'activité"
+        },
+        {
+            "message": "Pouvez-vous me préciser votre demande ?",
+            "expected_answers": "free_text",
+            "next_step": 7,
+            "save_as": "Autre demande"
+        },
+        {
+            "message": "Quel est votre email pour que nous puissions vous contacter ?",
+            "expected_answers": "free_text",
+            "next_step": 8,
+            "save_as": "Email"
+        },
+        {
+            "message": "Quel est votre numéro de téléphone ?",
+            "expected_answers": "free_text",
+            "next_step": 9,
+            "save_as": "Téléphone"
+        },
+        {
+            "message": "Avez-vous des questions particulières sur nos formations ?",
+            "expected_answers": "free_text",
+            "next_step": 10,
+            "save_as": "Questions"
+        },
+        {
+            "message": "Merci pour ces informations ! Un de nos conseillers vous contactera dans les plus brefs délais pour discuter de votre projet de formation.",
+            "expected_answers": "no_reply",
+            "next_step": 99
+        }
+    ]
+}

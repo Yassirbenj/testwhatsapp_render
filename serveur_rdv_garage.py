@@ -412,23 +412,26 @@ def process_creator():
             <div id="stepsContainer"></div>
 
             <div class="button-group">
-                <button onclick="addStep()">Ajouter une étape</button>
-                <button onclick="saveProcess()">Sauvegarder le processus</button>
+                <button type="button" onclick="addStep()">Ajouter une étape</button>
+                <button type="button" onclick="saveProcess()">Sauvegarder le processus</button>
             </div>
 
             <div id="status" class="status"></div>
         </div>
 
         <script>
+            // Déclarer steps comme variable globale
             let steps = [];
 
+            // Fonction pour ajouter une étape
             function addStep() {{
+                console.log('Adding step...'); // Debug log
                 const stepNumber = steps.length + 1;
                 const stepHtml = `
                     <div class="step-container" id="step-${{stepNumber}}">
                         <div class="step-header">
                             <span class="step-number">Étape ${{stepNumber}}</span>
-                            <button class="delete" onclick="deleteStep(${{stepNumber}})">Supprimer</button>
+                            <button type="button" class="delete" onclick="deleteStep(${{stepNumber}})">Supprimer</button>
                         </div>
                         <div class="form-group">
                             <label>Message:</label>
@@ -447,7 +450,7 @@ def process_creator():
                             <div class="expected-answers" id="answersList-${{stepNumber}}">
                                 <div class="answer-input">
                                     <input type="text" placeholder="Option">
-                                    <button onclick="addAnswer(${{stepNumber}})">+</button>
+                                    <button type="button" onclick="addAnswer(${{stepNumber}})">+</button>
                                 </div>
                             </div>
                         </div>
@@ -463,6 +466,7 @@ def process_creator():
                 `;
                 document.getElementById('stepsContainer').insertAdjacentHTML('beforeend', stepHtml);
                 steps.push(stepNumber);
+                console.log('Step added:', stepNumber); // Debug log
             }}
 
             function deleteStep(stepNumber) {{
@@ -654,10 +658,11 @@ def process_creator():
                 }});
             }}
 
-            // Ajouter une première étape au chargement
-            window.onload = function() {{
+            // Initialiser la page
+            document.addEventListener('DOMContentLoaded', function() {{
+                console.log('Page loaded, adding first step...'); // Debug log
                 addStep();
-            }};
+            }});
         </script>
     </body>
     </html>
