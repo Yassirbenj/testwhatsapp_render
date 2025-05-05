@@ -986,8 +986,9 @@ def webhook():
                                     user_data[sender]['data']['cv_path'] = filename
 
                                     # Continuer le processus
-                                    user_data[sender]['current_step'] = 3
-                                    send_step_message(sender, 3, process_recrutement)
+                                    print(f"CV téléchargé avec succès pour l'utilisateur {sender}")
+                                    # On ne force plus l'étape 4, on laisse le système suivre le flux du JSON
+                                    send_step_message(sender, user_data[sender]['current_step'], process_recrutement)
                                 else:
                                     send_message(sender, "Désolé, je n'ai pas pu télécharger votre CV. Pourriez-vous réessayer ?")
                             return "OK", 200
@@ -1137,6 +1138,15 @@ def webhook():
                                         # Logique pour le processus formation
                                         send_message(sender, "Merci pour vos réponses ! Nous vous contacterons bientôt.")
                                         user_data[sender]['state'] = 'completed'
+                                        # Ajouter une ligne dans Google Sheets
+                                        try:
+                                            print(f"Tentative d'ajout dans Google Sheets: {record}")
+                                            sheet.append_row(record)
+                                            print(f"✅ Candidat ajouté dans Google Sheet : {record}")
+                                        except Exception as e:
+                                            print(f"❌ Erreur lors de l'ajout dans Google Sheets: {str(e)}")
+                                            # Envoyer un message d'erreur à l'utilisateur
+                                            send_message(sender, "Désolé, une erreur s'est produite lors de l'enregistrement de vos informations. Nous vous contacterons bientôt.")
 
         return "OK", 200
 
