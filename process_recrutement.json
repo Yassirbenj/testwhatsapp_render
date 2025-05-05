@@ -1,9 +1,9 @@
 [
   {
-    "message": "Bonjour ! Merci d'avoir rempli notre formulaire de recrutement sur Facebook. Seriez-vous disponible pour répondre à quelques questions ? (Oui/Non)",
-    "expected_answers": ["Oui", "Non"],
+    "message": "Bonjour ! Merci d'avoir rempli notre formulaire de recrutement sur Facebook. Seriez-vous disponible pour répondre à quelques questions ? \n\n1- Je suis disponible\n2- Non, j'ai rien renseigné",
+    "expected_answers": ["1", "2"],
     "next_step": {
-      "Oui": 1,
+      "1": 1,
       "Non": 2
     },
     "save_as": "disponible"
@@ -15,16 +15,16 @@
     "save_as": "cv"
   },
   {
-    "message": "Je comprends. Si vous changez d'avis, n'hésitez pas à nous recontacter. Bonne journée !",
+    "message": "Désolé, cela doit être une erreur. Bonne journée !",
     "expected_answers": "no_reply",
     "next_step": 99
   },
   {
-    "message": "Merci pour votre CV ! Nous allons l'étudier et nous reviendrons vers vous très prochainement. Avez-vous des questions ?",
-    "expected_answers": ["Oui", "Non"],
+    "message": "Merci pour votre CV ! Nous allons l'étudier et nous reviendrons vers vous très prochainement. Avez-vous des questions ? \n\n1- Oui\n2- Non",
+    "expected_answers": ["1", "2"],
     "next_step": {
-      "Oui": 4,
-      "Non": 5
+      "1": 4,
+      "2": 5
     },
     "save_as": "a_des_questions"
   },
