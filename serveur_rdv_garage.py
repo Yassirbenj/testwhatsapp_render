@@ -56,9 +56,15 @@ CREDENTIALS_FILE_CALENDAR=os.getenv('CREDENTIALS_FILE_CALENDAR')
 
 # connexion google sheet
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name(CREDENTIALS_FILE, scope)
-client = gspread.authorize(creds)
-sheet = client.open("leads whatsapp").sheet1  # Mets ici le nom exact de ton Google Sheet
+try:
+    print("Tentative de connexion à Google Sheets...")
+    creds = ServiceAccountCredentials.from_json_keyfile_name(CREDENTIALS_FILE, scope)
+    client = gspread.authorize(creds)
+    sheet = client.open("leads whatsapp").sheet1  # Mets ici le nom exact de ton Google Sheet
+    print("✅ Connexion à Google Sheets réussie")
+except Exception as e:
+    print(f"❌ Erreur lors de la connexion à Google Sheets: {str(e)}")
+    raise
 
 # Google Calendar Setup
 SCOPES = ['https://www.googleapis.com/auth/calendar']
@@ -1099,8 +1105,14 @@ def webhook():
                                             record.append(value)
 
                                         # Ajouter une ligne dans Google Sheets
-                                        sheet.append_row(record)
-                                        print(f"✅ Lead ajouté dans Google Sheet : {record}")
+                                        try:
+                                            print(f"Tentative d'ajout dans Google Sheets: {record}")
+                                            sheet.append_row(record)
+                                            print(f"✅ Lead ajouté dans Google Sheet : {record}")
+                                        except Exception as e:
+                                            print(f"❌ Erreur lors de l'ajout dans Google Sheets: {str(e)}")
+                                            # Envoyer un message d'erreur à l'utilisateur
+                                            send_message(sender, "Désolé, une erreur s'est produite lors de l'enregistrement de vos informations. Nous vous contacterons bientôt.")
                                     elif current_process == process_recrutement:
                                         # Logique pour le processus recrutement
                                         send_message(sender, "Merci pour vos réponses ! Nous vous contacterons bientôt.")
@@ -1113,8 +1125,14 @@ def webhook():
                                                 record.append(value)
 
                                         # Ajouter une ligne dans Google Sheets
-                                        sheet.append_row(record)
-                                        print(f"✅ Candidat ajouté dans Google Sheet : {record}")
+                                        try:
+                                            print(f"Tentative d'ajout dans Google Sheets: {record}")
+                                            sheet.append_row(record)
+                                            print(f"✅ Candidat ajouté dans Google Sheet : {record}")
+                                        except Exception as e:
+                                            print(f"❌ Erreur lors de l'ajout dans Google Sheets: {str(e)}")
+                                            # Envoyer un message d'erreur à l'utilisateur
+                                            send_message(sender, "Désolé, une erreur s'est produite lors de l'enregistrement de vos informations. Nous vous contacterons bientôt.")
                                     else:
                                         # Logique pour le processus formation
                                         send_message(sender, "Merci pour vos réponses ! Nous vous contacterons bientôt.")

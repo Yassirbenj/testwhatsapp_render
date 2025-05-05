@@ -4,14 +4,20 @@
     "expected_answers": ["1", "2"],
     "next_step": {
       "1": 1,
-      "Non": 2
+      "Non": 3
     },
     "save_as": "disponible"
   },
   {
+    "message": "Pourrais-je avoir votre nom s'il vous plait ?",
+    "expected_answers": "free_text",
+    "next_step": 2,
+    "save_as": "cv"
+  },
+  {
     "message": "Parfait ! Pourriez-vous me partager votre CV ? Vous pouvez l'envoyer directement ici.",
     "expected_answers": "free_text",
-    "next_step": 3,
+    "next_step": 4,
     "save_as": "cv"
   },
   {
@@ -23,15 +29,15 @@
     "message": "Merci pour votre CV ! Nous allons l'étudier et nous reviendrons vers vous très prochainement. Avez-vous des questions ? \n\n1- Oui\n2- Non",
     "expected_answers": ["1", "2"],
     "next_step": {
-      "1": 4,
-      "2": 5
+      "1": 5,
+      "2": 6
     },
     "save_as": "a_des_questions"
   },
   {
     "message": "N'hésitez pas à me poser vos questions !",
     "expected_answers": "free_text",
-    "next_step": 5,
+    "next_step": 7,
     "save_as": "questions"
   },
   {
