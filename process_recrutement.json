@@ -1,0 +1,42 @@
+[
+  {
+    "message": "Bonjour ! Merci d'avoir rempli notre formulaire de recrutement sur Facebook. Seriez-vous disponible pour répondre à quelques questions ? (Oui/Non)",
+    "expected_answers": ["Oui", "Non"],
+    "next_step": {
+      "Oui": 1,
+      "Non": 2
+    },
+    "save_as": "disponible"
+  },
+  {
+    "message": "Parfait ! Pourriez-vous me partager votre CV ? Vous pouvez l'envoyer directement ici.",
+    "expected_answers": "free_text",
+    "next_step": 3,
+    "save_as": "cv"
+  },
+  {
+    "message": "Je comprends. Si vous changez d'avis, n'hésitez pas à nous recontacter. Bonne journée !",
+    "expected_answers": "no_reply",
+    "next_step": 99
+  },
+  {
+    "message": "Merci pour votre CV ! Nous allons l'étudier et nous reviendrons vers vous très prochainement. Avez-vous des questions ?",
+    "expected_answers": ["Oui", "Non"],
+    "next_step": {
+      "Oui": 4,
+      "Non": 5
+    },
+    "save_as": "a_des_questions"
+  },
+  {
+    "message": "N'hésitez pas à me poser vos questions !",
+    "expected_answers": "free_text",
+    "next_step": 5,
+    "save_as": "questions"
+  },
+  {
+    "message": "Merci pour votre temps ! Nous vous recontacterons bientôt. Bonne journée !",
+    "expected_answers": "no_reply",
+    "next_step": 99
+  }
+]

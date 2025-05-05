@@ -1,7 +1,6 @@
 
 # Environment variables and credentials
 .env
-*.json
 whatsappbotleads-*.json
 credentials.json
 token.json
