@@ -154,6 +154,9 @@ with open('process_garage.json', 'r') as f:
 with open('process.json', 'r') as f:
     process_formation = json.load(f)
 
+with open('process_recrutement.json', 'r') as f:
+    process_recrutement = json.load(f)
+
 # Stocker l'état et les réponses de chaque utilisateur
 user_data = {}
 
@@ -821,153 +824,186 @@ def webhook():
                     messages = value.get('messages')
                     if messages:
                         message = messages[0]
-                        text = message.get('text', {}).get('body')
                         sender = message['from']
 
                         # Nettoyer les anciennes conversations
                         cleanup_old_conversations()
 
                         # Gérer la commande de réinitialisation
-                        if text.lower() in ['reset', 'recommencer', 'nouveau', 'start']:
-                            if sender in user_data:
-                                del user_data[sender]
-                            send_message(sender, "Bienvenue ! Que souhaitez-vous faire ?\n1️⃣ Prendre rendez-vous au garage\n2️⃣ S'informer sur nos formations")
+                        if 'text' in message:
+                            text = message['text'].get('body')
+                            if text.lower() in ['reset', 'recommencer', 'nouveau', 'start']:
+                                if sender in user_data:
+                                    del user_data[sender]
+                                send_message(sender, "Bienvenue ! Que souhaitez-vous faire ?\n1️⃣ Prendre rendez-vous au garage\n2️⃣ S'informer sur nos formations\n3️⃣ Recrutement")
+                                return "OK", 200
+
+                        # Gérer les fichiers média (CV)
+                        if 'document' in message:
+                            if sender in user_data and user_data[sender].get('process') == process_recrutement:
+                                # Créer le dossier CVs s'il n'existe pas
+                                os.makedirs('CVs', exist_ok=True)
+
+                                # Récupérer l'ID du média
+                                media_id = message['document']['id']
+
+                                # Télécharger le fichier
+                                url = f"https://graph.facebook.com/v22.0/{media_id}"
+                                headers = {"Authorization": f"Bearer {ACCESS_TOKEN}"}
+                                response = requests.get(url, headers=headers)
+
+                                if response.status_code == 200:
+                                    # Générer un nom de fichier unique
+                                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                                    filename = f"CVs/CV_{sender}_{timestamp}.pdf"
+
+                                    # Sauvegarder le fichier
+                                    with open(filename, 'wb') as f:
+                                        f.write(response.content)
+
+                                    # Mettre à jour les données utilisateur
+                                    user_data[sender]['data']['cv_path'] = filename
+
+                                    # Continuer le processus
+                                    user_data[sender]['current_step'] = 3
+                                    send_step_message(sender, 3, process_recrutement)
+                                else:
+                                    send_message(sender, "Désolé, je n'ai pas pu télécharger votre CV. Pourriez-vous réessayer ?")
                             return "OK", 200
 
                         if sender not in user_data:
                             # Premier message - choisir le processus
-                            if text.lower() == "1":
-                                user_data[sender] = {
-                                    'state': 'initial',
-                                    'current_step': 0,
-                                    'data': {},
-                                    'process': process_garage,
-                                    'last_activity': datetime.now()
-                                }
-                                send_step_message(sender, 0, process_garage)
-                            elif text.lower() == "2":
-                                user_data[sender] = {
-                                    'state': 'initial',
-                                    'current_step': 0,
-                                    'data': {},
-                                    'process': process_formation,
-                                    'last_activity': datetime.now()
-                                }
-                                send_step_message(sender, 0, process_formation)
-                            else:
-                                # Message initial pour choisir le processus
-                                send_message(sender, "Bienvenue ! Que souhaitez-vous faire ?\n1️⃣ Prendre rendez-vous au garage\n2️⃣ S'informer sur nos formations")
+                            if 'text' in message:
+                                text = message['text'].get('body')
+                                if text == "1":
+                                    user_data[sender] = {
+                                        'state': 'initial',
+                                        'current_step': 0,
+                                        'data': {},
+                                        'process': process_garage,
+                                        'last_activity': datetime.now()
+                                    }
+                                    send_step_message(sender, 0, process_garage)
+                                elif text == "2":
+                                    user_data[sender] = {
+                                        'state': 'initial',
+                                        'current_step': 0,
+                                        'data': {},
+                                        'process': process_formation,
+                                        'last_activity': datetime.now()
+                                    }
+                                    send_step_message(sender, 0, process_formation)
+                                elif text == "3":
+                                    user_data[sender] = {
+                                        'state': 'initial',
+                                        'current_step': 0,
+                                        'data': {},
+                                        'process': process_recrutement,
+                                        'last_activity': datetime.now()
+                                    }
+                                    send_step_message(sender, 0, process_recrutement)
+                                else:
+                                    # Message initial pour choisir le processus
+                                    send_message(sender, "Bienvenue ! Que souhaitez-vous faire ?\n1️⃣ Prendre rendez-vous au garage\n2️⃣ S'informer sur nos formations\n3️⃣ Recrutement")
                             return "OK", 200
 
-                        # Mettre à jour le timestamp de dernière activité
-                        user_data[sender]['last_activity'] = datetime.now()
+                        if 'text' in message:
+                            text = message['text'].get('body')
 
-                        state = user_data[sender]['state']
-                        step_index = user_data[sender]['current_step']
-                        current_process = user_data[sender]['process']
+                            # Mettre à jour le timestamp de dernière activité
+                            user_data[sender]['last_activity'] = datetime.now()
 
-                        if step_index < len(current_process):
-                            current_step = current_process[step_index]
+                            state = user_data[sender]['state']
+                            step_index = user_data[sender]['current_step']
+                            current_process = user_data[sender]['process']
 
-                            # === SAUVEGARDE de la réponse utilisateur ===
-                            save_key = current_step.get('save_as')
-                            if save_key:
-                                user_data[sender]['data'][save_key] = text
+                            if step_index < len(current_process):
+                                current_step = current_process[step_index]
 
-                            if current_step['expected_answers'] == "no_reply":
-                                # Pas besoin d'attendre l'utilisateur
+                                # === SAUVEGARDE de la réponse utilisateur ===
+                                save_key = current_step.get('save_as')
+                                if save_key:
+                                    user_data[sender]['data'][save_key] = text
+
+                                if current_step['expected_answers'] == "no_reply":
+                                    # Pas besoin d'attendre l'utilisateur
+                                    next_step = current_step['next_step']
+                                    if isinstance(next_step, dict):
+                                        user_data[sender]['current_step'] = next_step.get(text, 99)
+                                    else:
+                                        user_data[sender]['current_step'] = next_step
+
+                                    # ⚡ Directement lancer la suite
+                                    if user_data[sender]['current_step'] >= len(current_process):
+                                        if current_process == process_garage:
+                                            print(f"Utilisateur {sender} a terminé le process principal (no_reply). Passage à la prise de RDV.")
+                                            send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
+                                            user_data[sender]['state'] = 'ask_start_date'
+                                        elif current_process == process_recrutement:
+                                            # Logique spécifique pour le processus recrutement
+                                            send_message(sender, "Merci pour vos réponses ! Nous vous contacterons bientôt.")
+                                            user_data[sender]['state'] = 'completed'
+                                        else:
+                                            # Logique spécifique pour le processus formation
+                                            send_message(sender, "Merci pour vos réponses ! Nous vous contacterons bientôt.")
+                                            user_data[sender]['state'] = 'completed'
+                                    else:
+                                        send_step_message(sender, user_data[sender]['current_step'], current_process)
+
+                                    return "OK", 200
+
+                                if current_step['expected_answers'] != "free_text":
+                                    if text not in current_step['expected_answers']:
+                                        send_message(sender, "Merci de répondre avec une option valide.")
+                                        return "OK", 200
+
+                                # Aller à la prochaine étape
                                 next_step = current_step['next_step']
                                 if isinstance(next_step, dict):
                                     user_data[sender]['current_step'] = next_step.get(text, 99)
                                 else:
                                     user_data[sender]['current_step'] = next_step
 
-                                # ⚡ Directement lancer la suite
-                                if user_data[sender]['current_step'] >= len(current_process):
-                                    if current_process == process_garage:
-                                        print(f"Utilisateur {sender} a terminé le process principal (no_reply). Passage à la prise de RDV.")
-                                        send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
-                                        user_data[sender]['state'] = 'ask_start_date'
-                                    else:
-                                        # Logique spécifique pour le processus formation
-                                        send_message(sender, "Merci pour vos réponses ! Nous vous contacterons bientôt.")
-                                        user_data[sender]['state'] = 'completed'
-                                else:
-                                    send_step_message(sender, user_data[sender]['current_step'], current_process)
-
+                                send_step_message(sender, user_data[sender]['current_step'], current_process)
                                 return "OK", 200
 
-                            if current_step['expected_answers'] != "free_text":
-                                if text not in current_step['expected_answers']:
-                                    send_message(sender, "Merci de répondre avec une option valide.")
-                                    return "OK", 200
+                            elif step_index >= len(current_process):
+                                # Ici c'est fini, on lance la suite spéciale selon le processus
+                                if state == 'initial':
+                                    print(f"Utilisateur {sender} a terminé le process principal. Passage à la suite.")
 
-                            # Aller à la prochaine étape
-                            next_step = current_step['next_step']
-                            if isinstance(next_step, dict):
-                                user_data[sender]['current_step'] = next_step.get(text, 99)
-                            else:
-                                user_data[sender]['current_step'] = next_step
+                                    if current_process == process_garage:
+                                        # Proposer une date pour prise de rendez-vous
+                                        send_message(sender, "Merci pour vos réponses 🙏. Maintenant, choisissons ensemble un créneau pour votre rendez-vous.")
+                                        send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
+                                        user_data[sender]['state'] = 'ask_start_date'
 
-                            send_step_message(sender, user_data[sender]['current_step'], current_process)
-                            return "OK", 200
+                                        # Construction de la ligne à enregistrer
+                                        record = [sender]  # Numéro de téléphone WhatsApp
+                                        for key, value in user_data[sender]['data'].items():
+                                            record.append(value)
 
-                        elif step_index >= len(current_process):
-                            # Ici c'est fini, on lance la suite spéciale selon le processus
-                            if state == 'initial':
-                                print(f"Utilisateur {sender} a terminé le process principal. Passage à la suite.")
+                                        # Ajouter une ligne dans Google Sheets
+                                        sheet.append_row(record)
+                                        print(f"✅ Lead ajouté dans Google Sheet : {record}")
+                                    elif current_process == process_recrutement:
+                                        # Logique pour le processus recrutement
+                                        send_message(sender, "Merci pour vos réponses ! Nous vous contacterons bientôt.")
+                                        user_data[sender]['state'] = 'completed'
 
-                                if current_process == process_garage:
-                                    # Proposer une date pour prise de rendez-vous
-                                    send_message(sender, "Merci pour vos réponses 🙏. Maintenant, choisissons ensemble un créneau pour votre rendez-vous.")
-                                    send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
-                                    user_data[sender]['state'] = 'ask_start_date'
+                                        # Construction de la ligne à enregistrer
+                                        record = [sender]  # Numéro de téléphone WhatsApp
+                                        for key, value in user_data[sender]['data'].items():
+                                            if key != 'cv_path':  # Ne pas inclure le chemin du fichier
+                                                record.append(value)
 
-                                    # Construction de la ligne à enregistrer
-                                    record = [sender]  # Numéro de téléphone WhatsApp
-                                    for key, value in user_data[sender]['data'].items():
-                                        record.append(value)
-
-                                    # Ajouter une ligne dans Google Sheets
-                                    sheet.append_row(record)
-                                    print(f"✅ Lead ajouté dans Google Sheet : {record}")
-                                else:
-                                    # Logique pour le processus formation
-                                    send_message(sender, "Merci pour vos réponses ! Nous vous contacterons bientôt.")
-                                    user_data[sender]['state'] = 'completed'
-
-                            # Le reste du code pour la gestion des rendez-vous reste inchangé
-                            elif state == 'ask_start_date':
-                                try:
-                                    user_date = datetime.strptime(text, "%Y-%m-%d").date()
-                                    slots = find_available_slots(user_date)
-
-                                    if not slots:
-                                        send_message(sender, "Désolé, aucun créneau disponible sur cette période. Merci d'indiquer une autre date.")
+                                        # Ajouter une ligne dans Google Sheets
+                                        sheet.append_row(record)
+                                        print(f"✅ Candidat ajouté dans Google Sheet : {record}")
                                     else:
-                                        user_data[sender]['slots'] = slots
-                                        message = "Voici nos créneaux disponibles :\n"
-                                        for idx, (start, _) in enumerate(slots, 1):
-                                            message += f"{idx}️⃣ {format_date_fr(start)}\n"
-                                        message += "\nMerci de répondre par 1, 2 ou 3 pour choisir votre créneau."
-                                        send_message(sender, message)
-                                        user_data[sender]['state'] = 'choose_slot'
-                                except ValueError:
-                                    send_message(sender, "Merci d'indiquer une date valide au format AAAA-MM-JJ.")
-
-                            elif user_data[sender]['state'] == 'choose_slot':
-                                if text in ["1", "2", "3"]:
-                                    idx = int(text) - 1
-                                    slots = user_data[sender]['slots']
-                                    selected_start, selected_end = slots[idx]
-
-                                    create_appointment(sender, selected_start, selected_end)
-
-                                    send_message(sender, f"✅ Votre rendez-vous est confirmé pour le {format_date_fr(selected_start)} ! Merci et à bientôt 🚗")
-                                    user_data[sender]['state'] = 'completed'
-
-                                else:
-                                    send_message(sender, "Merci de choisir 1, 2 ou 3.")
+                                        # Logique pour le processus formation
+                                        send_message(sender, "Merci pour vos réponses ! Nous vous contacterons bientôt.")
+                                        user_data[sender]['state'] = 'completed'
 
         return "OK", 200
 
