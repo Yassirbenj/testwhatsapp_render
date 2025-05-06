@@ -959,40 +959,7 @@ def webhook():
                                 send_message(sender, "Bienvenue ! Que souhaitez-vous faire ?\n1️⃣ Prendre rendez-vous au garage\n2️⃣ S'informer sur nos formations\n3️⃣ Recrutement")
                                 return "OK", 200
 
-                        # Gérer les fichiers média (CV)
-                        if 'document' in message:
-                            if sender in user_data and user_data[sender].get('process') == process_recrutement:
-                                # Créer le dossier CVs s'il n'existe pas
-                                os.makedirs('CVs', exist_ok=True)
 
-                                # Récupérer l'ID du média
-                                media_id = message['document']['id']
-
-                                # Télécharger le fichier
-                                url = f"https://graph.facebook.com/v22.0/{media_id}"
-                                headers = {"Authorization": f"Bearer {ACCESS_TOKEN}"}
-                                response = requests.get(url, headers=headers)
-
-                                if response.status_code == 200:
-                                    # Générer un nom de fichier unique
-                                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                                    filename = f"CVs/CV_{sender}_{timestamp}.pdf"
-
-                                    # Sauvegarder le fichier
-                                    with open(filename, 'wb') as f:
-                                        f.write(response.content)
-
-                                    # Mettre à jour les données utilisateur
-                                    user_data[sender]['data']['cv_path'] = filename
-
-                                    # Continuer le processus
-                                    print(f"CV téléchargé avec succès pour l'utilisateur {sender}")
-                                    # Passer à l'étape suivante (4) comme défini dans le JSON
-                                    user_data[sender]['current_step'] = 4
-                                    send_step_message(sender, user_data[sender]['current_step'], process_recrutement)
-                                else:
-                                    send_message(sender, "Désolé, je n'ai pas pu télécharger votre CV. Pourriez-vous réessayer ?")
-                            return "OK", 200
 
                         if sender not in user_data:
                             # Premier message - choisir le processus
@@ -1032,122 +999,142 @@ def webhook():
 
                         if 'text' in message:
                             text = message['text'].get('body')
+                        # Gérer les fichiers média (CV)
 
-                            # Mettre à jour le timestamp de dernière activité
-                            user_data[sender]['last_activity'] = datetime.now()
 
-                            state = user_data[sender]['state']
-                            step_index = user_data[sender]['current_step']
-                            current_process = user_data[sender]['process']
+                        # Mettre à jour le timestamp de dernière activité
+                        user_data[sender]['last_activity'] = datetime.now()
 
-                            if step_index < len(current_process):
-                                current_step = current_process[step_index]
+                        state = user_data[sender]['state']
+                        step_index = user_data[sender]['current_step']
+                        current_process = user_data[sender]['process']
 
-                                # === SAUVEGARDE de la réponse utilisateur ===
-                                save_key = current_step.get('save_as')
-                                if save_key:
+                        if step_index < len(current_process):
+                            current_step = current_process[step_index]
+
+                            # === SAUVEGARDE de la réponse utilisateur ===
+                            save_key = current_step.get('save_as')
+                            if save_key:
+                                if 'text' in message:
+                                    text = message['text'].get('body')
                                     user_data[sender]['data'][save_key] = text
-
-                                if current_step['expected_answers'] == "no_reply":
-                                    # Pas besoin d'attendre l'utilisateur
-                                    next_step = current_step['next_step']
-                                    if isinstance(next_step, dict):
-                                        user_data[sender]['current_step'] = next_step.get(text, 99)
+                                elif 'document' in message:
+                                    media_id = message['document']['id']
+                                    # Télécharger le fichier
+                                    if response.status_code == 200:
+                                        url = f"https://graph.facebook.com/v22.0/{media_id}"
+                                        headers = {"Authorization": f"Bearer {ACCESS_TOKEN}"}
+                                        response = requests.get(url, headers=headers)
+                                        user_data[sender]['data'][save_key] = response.content
+                                        print(f"Document téléchargé avec succès pour l'utilisateur {sender}")
                                     else:
-                                        user_data[sender]['current_step'] = next_step
+                                        send_message(sender, "Désolé, je n'ai pas pu télécharger votre document. Pourriez-vous réessayer ?")
 
-                                    # ⚡ Directement lancer la suite
-                                    if user_data[sender]['current_step'] >= len(current_process):
-                                        if current_process == process_garage:
-                                            print(f"Utilisateur {sender} a terminé le process principal (no_reply). Passage à la prise de RDV.")
-                                            send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
-                                            user_data[sender]['state'] = 'ask_start_date'
-                                        elif current_process == process_recrutement:
-                                            # Logique spécifique pour le processus recrutement
-                                            send_message(sender, "Merci pour vos réponses ! Nous vous contacterons bientôt.")
-                                            user_data[sender]['state'] = 'completed'
-                                        else:
-                                            # Logique spécifique pour le processus formation
-                                            send_message(sender, "Merci pour vos réponses ! Nous vous contacterons bientôt.")
-                                            user_data[sender]['state'] = 'completed'
-                                    else:
-                                        send_step_message(sender, user_data[sender]['current_step'], current_process)
-
-                                    return "OK", 200
-
-                                if current_step['expected_answers'] != "free_text":
-                                    if text not in current_step['expected_answers']:
-                                        send_message(sender, "Merci de répondre avec une option valide.")
-                                        return "OK", 200
-
-                                # Aller à la prochaine étape
+                            if current_step['expected_answers'] == "no_reply":
+                                # Pas besoin d'attendre l'utilisateur
                                 next_step = current_step['next_step']
                                 if isinstance(next_step, dict):
                                     user_data[sender]['current_step'] = next_step.get(text, 99)
                                 else:
                                     user_data[sender]['current_step'] = next_step
 
-                                send_step_message(sender, user_data[sender]['current_step'], current_process)
-                                return "OK", 200
-
-                            elif step_index >= len(current_process):
-                                # Ici c'est fini, on lance la suite spéciale selon le processus
-                                if state == 'initial':
-                                    print(f"Utilisateur {sender} a terminé le process principal. Passage à la suite.")
-
+                                # ⚡ Directement lancer la suite
+                                if user_data[sender]['current_step'] >= len(current_process):
                                     if current_process == process_garage:
-                                        # Proposer une date pour prise de rendez-vous
-                                        send_message(sender, "Merci pour vos réponses 🙏. Maintenant, choisissons ensemble un créneau pour votre rendez-vous.")
+                                        print(f"Utilisateur {sender} a terminé le process principal (no_reply). Passage à la prise de RDV.")
                                         send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
                                         user_data[sender]['state'] = 'ask_start_date'
-
-                                        # Construction de la ligne à enregistrer
-                                        record = [sender]  # Numéro de téléphone WhatsApp
-                                        for key, value in user_data[sender]['data'].items():
-                                            record.append(value)
-
-                                        # Ajouter une ligne dans Google Sheets
-                                        try:
-                                            print(f"Tentative d'ajout dans Google Sheets: {record}")
-                                            sheet.append_row(record)
-                                            print(f"✅ Lead ajouté dans Google Sheet : {record}")
-                                        except Exception as e:
-                                            print(f"❌ Erreur lors de l'ajout dans Google Sheets: {str(e)}")
-                                            # Envoyer un message d'erreur à l'utilisateur
-                                            send_message(sender, "Désolé, une erreur s'est produite lors de l'enregistrement de vos informations. Nous vous contacterons bientôt.")
                                     elif current_process == process_recrutement:
-                                        # Logique pour le processus recrutement
+                                        # Logique spécifique pour le processus recrutement
                                         send_message(sender, "Merci pour vos réponses ! Nous vous contacterons bientôt.")
                                         user_data[sender]['state'] = 'completed'
-
-                                        # Construction de la ligne à enregistrer
-                                        record = [sender]  # Numéro de téléphone WhatsApp
-                                        for key, value in user_data[sender]['data'].items():
-                                            if key != 'cv_path':  # Ne pas inclure le chemin du fichier
-                                                record.append(value)
-
-                                        # Ajouter une ligne dans Google Sheets
-                                        try:
-                                            print(f"Tentative d'ajout dans Google Sheets: {record}")
-                                            sheet.append_row(record)
-                                            print(f"✅ Candidat ajouté dans Google Sheet : {record}")
-                                        except Exception as e:
-                                            print(f"❌ Erreur lors de l'ajout dans Google Sheets: {str(e)}")
-                                            # Envoyer un message d'erreur à l'utilisateur
-                                            send_message(sender, "Désolé, une erreur s'est produite lors de l'enregistrement de vos informations. Nous vous contacterons bientôt.")
                                     else:
-                                        # Logique pour le processus formation
+                                        # Logique spécifique pour le processus formation
                                         send_message(sender, "Merci pour vos réponses ! Nous vous contacterons bientôt.")
                                         user_data[sender]['state'] = 'completed'
-                                        # Ajouter une ligne dans Google Sheets
-                                        try:
-                                            print(f"Tentative d'ajout dans Google Sheets: {record}")
-                                            sheet.append_row(record)
-                                            print(f"✅ Candidat ajouté dans Google Sheet : {record}")
-                                        except Exception as e:
-                                            print(f"❌ Erreur lors de l'ajout dans Google Sheets: {str(e)}")
-                                            # Envoyer un message d'erreur à l'utilisateur
-                                            send_message(sender, "Désolé, une erreur s'est produite lors de l'enregistrement de vos informations. Nous vous contacterons bientôt.")
+                                else:
+                                    send_step_message(sender, user_data[sender]['current_step'], current_process)
+
+                                return "OK", 200
+
+                            if current_step['expected_answers'] != "free_text":
+                                if text not in current_step['expected_answers']:
+                                    send_message(sender, "Merci de répondre avec une option valide.")
+                                    return "OK", 200
+
+                            # Aller à la prochaine étape
+                            next_step = current_step['next_step']
+                            if isinstance(next_step, dict):
+                                user_data[sender]['current_step'] = next_step.get(text, 99)
+                            else:
+                                user_data[sender]['current_step'] = next_step
+
+                            send_step_message(sender, user_data[sender]['current_step'], current_process)
+                            return "OK", 200
+
+                        elif step_index >= len(current_process):
+                            # Ici c'est fini, on lance la suite spéciale selon le processus
+                            if state == 'initial':
+                                print(f"Utilisateur {sender} a terminé le process principal. Passage à la suite.")
+
+                                if current_process == process_garage:
+                                    # Proposer une date pour prise de rendez-vous
+                                    send_message(sender, "Merci pour vos réponses 🙏. Maintenant, choisissons ensemble un créneau pour votre rendez-vous.")
+                                    send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
+                                    user_data[sender]['state'] = 'ask_start_date'
+
+                                    # Construction de la ligne à enregistrer
+                                    record = [sender]  # Numéro de téléphone WhatsApp
+                                    for key, value in user_data[sender]['data'].items():
+                                        record.append(value)
+
+                                    # Ajouter une ligne dans Google Sheets
+                                    try:
+                                        print(f"Tentative d'ajout dans Google Sheets: {record}")
+                                        sheet.append_row(record)
+                                        print(f"✅ Lead ajouté dans Google Sheet : {record}")
+                                    except Exception as e:
+                                        print(f"❌ Erreur lors de l'ajout dans Google Sheets: {str(e)}")
+                                        # Envoyer un message d'erreur à l'utilisateur
+                                        send_message(sender, "Désolé, une erreur s'est produite lors de l'enregistrement de vos informations. Nous vous contacterons bientôt.")
+                                elif current_process == process_recrutement:
+                                    # Logique pour le processus recrutement
+                                    send_message(sender, "Merci pour vos réponses ! Nous vous contacterons bientôt.")
+                                    user_data[sender]['state'] = 'completed'
+
+                                    # Construction de la ligne à enregistrer
+                                    record = [sender]  # Numéro de téléphone WhatsApp
+                                    for key, value in user_data[sender]['data'].items():
+                                        record.append(value)
+
+                                    # Ajouter une ligne dans Google Sheets
+                                    try:
+                                        print(f"Tentative d'ajout dans Google Sheets: {record}")
+                                        sheet.append_row(record)
+                                        print(f"✅ Candidat ajouté dans Google Sheet : {record}")
+                                    except Exception as e:
+                                        print(f"❌ Erreur lors de l'ajout dans Google Sheets: {str(e)}")
+                                        # Envoyer un message d'erreur à l'utilisateur
+                                        send_message(sender, "Désolé, une erreur s'est produite lors de l'enregistrement de vos informations. Nous vous contacterons bientôt.")
+                                else:
+                                    # Logique pour le processus formation
+                                    send_message(sender, "Merci pour vos réponses ! Nous vous contacterons bientôt.")
+                                    user_data[sender]['state'] = 'completed'
+
+                                    # Construction de la ligne à enregistrer
+                                    record = [sender]  # Numéro de téléphone WhatsApp
+                                    for key, value in user_data[sender]['data'].items():
+                                        record.append(value)
+
+                                    # Ajouter une ligne dans Google Sheets
+                                    try:
+                                        print(f"Tentative d'ajout dans Google Sheets: {record}")
+                                        sheet.append_row(record)
+                                        print(f"✅ Candidat ajouté dans Google Sheet : {record}")
+                                    except Exception as e:
+                                        print(f"❌ Erreur lors de l'ajout dans Google Sheets: {str(e)}")
+                                        # Envoyer un message d'erreur à l'utilisateur
+                                        send_message(sender, "Désolé, une erreur s'est produite lors de l'enregistrement de vos informations. Nous vous contacterons bientôt.")
 
         return "OK", 200
 
