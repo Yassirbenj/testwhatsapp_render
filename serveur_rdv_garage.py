@@ -987,7 +987,8 @@ def webhook():
 
                                     # Continuer le processus
                                     print(f"CV téléchargé avec succès pour l'utilisateur {sender}")
-                                    # On ne force plus l'étape 4, on laisse le système suivre le flux du JSON
+                                    # Passer à l'étape suivante (4) comme défini dans le JSON
+                                    user_data[sender]['current_step'] = 4
                                     send_step_message(sender, user_data[sender]['current_step'], process_recrutement)
                                 else:
                                     send_message(sender, "Désolé, je n'ai pas pu télécharger votre CV. Pourriez-vous réessayer ?")
