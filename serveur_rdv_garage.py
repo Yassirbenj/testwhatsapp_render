@@ -1086,7 +1086,7 @@ def webhook():
                                     record = [sender]  # Numéro de téléphone WhatsApp
                                     for key, value in user_data[sender]['data'].items():
                                         record.append(value)
-
+                                    print("Données à enregistrer pour le recrutement :", user_data[sender]['data'])
                                     # Ajouter une ligne dans Google Sheets
                                     try:
                                         print(f"Tentative d'ajout dans Google Sheets: {record}")
@@ -1105,7 +1105,7 @@ def webhook():
                                     record = [sender]  # Numéro de téléphone WhatsApp
                                     for key, value in user_data[sender]['data'].items():
                                         record.append(value)
-
+                                    print("Données à enregistrer pour le recrutement :", user_data[sender]['data'])
                                     # Ajouter une ligne dans Google Sheets
                                     try:
                                         print(f"Tentative d'ajout dans Google Sheets: {record}")
@@ -1124,7 +1124,7 @@ def webhook():
                                     record = [sender]  # Numéro de téléphone WhatsApp
                                     for key, value in user_data[sender]['data'].items():
                                         record.append(value)
-
+                                    print("Données à enregistrer pour le recrutement :", user_data[sender]['data'])
                                     # Ajouter une ligne dans Google Sheets
                                     try:
                                         print(f"Tentative d'ajout dans Google Sheets: {record}")
@@ -1134,6 +1134,46 @@ def webhook():
                                         print(f"❌ Erreur lors de l'ajout dans Google Sheets: {str(e)}")
                                         # Envoyer un message d'erreur à l'utilisateur
                                         send_message(sender, "Désolé, une erreur s'est produite lors de l'enregistrement de vos informations. Nous vous contacterons bientôt.")
+
+                            if state == 'ask_start_date':
+                                # Récupérer la date envoyée par l'utilisateur
+                                try:
+                                    start_date = datetime.strptime(text, "%Y-%m-%d")
+                                except Exception:
+                                    send_message(sender, "Merci d'indiquer une date au format AAAA-MM-JJ (ex: 2024-06-01)")
+                                    return "OK", 200
+
+                                slots = find_available_slots(start_date)
+                                if not slots:
+                                    send_message(sender, "Désolé, aucun créneau n'est disponible à partir de cette date. Merci d'en proposer une autre.")
+                                    return "OK", 200
+
+                                # Proposer les créneaux à l'utilisateur
+                                msg = "Voici les créneaux disponibles :\n"
+                                for idx, (slot_start, slot_end) in enumerate(slots, 1):
+                                    msg += f"{idx}. {format_date_fr(slot_start)} - {format_date_fr(slot_end)}\n"
+                                msg += "\nMerci de répondre par le numéro du créneau choisi."
+                                send_message(sender, msg)
+
+                                # Stocker les créneaux proposés pour ce user
+                                user_data[sender]['available_slots'] = slots
+                                user_data[sender]['state'] = 'choose_slot'
+                                return "OK", 200
+
+                            if state == 'choose_slot':
+                                slots = user_data[sender].get('available_slots', [])
+                                try:
+                                    idx = int(text.strip()) - 1
+                                    slot_start, slot_end = slots[idx]
+                                except Exception:
+                                    send_message(sender, "Merci de répondre par le numéro du créneau choisi.")
+                                    return "OK", 200
+
+                                # Créer le rendez-vous
+                                link = create_appointment(sender, slot_start, slot_end)
+                                send_message(sender, f"Votre rendez-vous est confirmé ! 📅\nLien Google Calendar : {link}")
+                                user_data[sender]['state'] = 'completed'
+
 
         return "OK", 200
 

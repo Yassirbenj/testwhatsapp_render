@@ -12,7 +12,7 @@
     "message": "Pourrais-je avoir votre nom s'il vous plait ?",
     "expected_answers": "free_text",
     "next_step": 2,
-    "save_as": "cv"
+    "save_as": "nom"
   },
   {
     "message": "Parfait ! Pourriez-vous me partager votre CV ? Vous pouvez l'envoyer directement ici.",
@@ -39,10 +39,5 @@
     "expected_answers": "free_text",
     "next_step": 7,
     "save_as": "questions"
-  },
-  {
-    "message": "Merci pour votre temps ! Nous vous recontacterons bientôt. Bonne journée !",
-    "expected_answers": "no_reply",
-    "next_step": 99
   }
 ]
