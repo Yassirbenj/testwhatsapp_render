@@ -11,3 +11,5 @@ python-dotenv
 requests
 datetime
 gunicorn
+googleapiclient.http
+io

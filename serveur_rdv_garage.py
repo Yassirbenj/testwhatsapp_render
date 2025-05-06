@@ -10,7 +10,8 @@ from google.oauth2 import service_account
 from datetime import datetime, timedelta, time
 import pytz
 import os
-
+from googleapiclient.http import MediaIoBaseUpload
+import io
 
 # Dictionnaires pour la traduction des jours et mois en français
 JOURS = {
@@ -67,14 +68,15 @@ except Exception as e:
     raise
 
 # Google Calendar Setup
-SCOPES = ['https://www.googleapis.com/auth/calendar']
+SCOPES = ['https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/drive']
 creds = service_account.Credentials.from_service_account_file(CREDENTIALS_FILE_CALENDAR, scopes=SCOPES)
 calendar_service = build('calendar', 'v3', credentials=creds)
+drive_service = build('drive', 'v3', credentials=creds)
 
 CALENDAR_ID = 'benjilaliyassir@gmail.com'
 TIMEZONE = 'Africa/Casablanca'
 print(calendar_service.calendarList().list().execute())
-
+print(drive_service.files().list().execute())
 # Fonction de recherche de créneaux
 def find_available_slots(start_date, num_days=5):
     timezone = pytz.timezone(TIMEZONE)
@@ -1021,13 +1023,52 @@ def webhook():
                                 elif 'document' in message:
                                     media_id = message['document']['id']
                                     try:
+                                        # 1. Obtenir l'URL de téléchargement depuis Facebook
                                         url = f"https://graph.facebook.com/v22.0/{media_id}"
                                         headers = {"Authorization": f"Bearer {ACCESS_TOKEN}"}
                                         response = requests.get(url, headers=headers)
-                                        user_data[sender]['data'][save_key] = response.content
-                                        print(f"Document téléchargé avec succès pour l'utilisateur {sender}")
-                                    except:
-                                        send_message(sender, "Désolé, je n'ai pas pu télécharger votre document. Pourriez-vous réessayer ?")
+                                        file_info = response.json()
+                                        file_url = file_info.get('url')
+                                        file_name = message['document'].get('filename', 'document')
+
+                                        if not file_url:
+                                            send_message(sender, "Désolé, je n'ai pas pu récupérer le lien du document. Pourriez-vous réessayer ?")
+                                            return "OK", 200
+
+                                        # 2. Télécharger le fichier binaire depuis Facebook
+                                        file_response = requests.get(file_url, headers=headers)
+                                        if file_response.status_code != 200:
+                                            send_message(sender, "Désolé, je n'ai pas pu télécharger votre document. Pourriez-vous réessayer ?")
+                                            return "OK", 200
+
+                                        import io
+                                        from googleapiclient.http import MediaIoBaseUpload
+
+                                        file_bytes = io.BytesIO(file_response.content)
+
+                                        # 3. Uploader sur Google Drive
+                                        media = MediaIoBaseUpload(file_bytes, mimetype=message['document'].get('mime_type', 'application/octet-stream'))
+                                        drive_file = {
+                                            'name': file_name,
+                                            'parents': ['root']  # ou l'ID d'un dossier spécifique si tu veux
+                                        }
+                                        uploaded = drive_service.files().create(body=drive_file, media_body=media, fields='id').execute()
+                                        file_id = uploaded.get('id')
+
+                                        # 4. Rendre le fichier accessible (optionnel, pour obtenir un lien partageable)
+                                        drive_service.permissions().create(
+                                            fileId=file_id,
+                                            body={'type': 'anyone', 'role': 'reader'}
+                                        ).execute()
+
+                                        # 5. Construire l'URL partageable
+                                        drive_url = f"https://drive.google.com/file/d/{file_id}/view?usp=sharing"
+                                        user_data[sender]['data'][save_key] = drive_url
+                                        print(f"Document uploadé sur Drive pour {sender}: {drive_url}")
+
+                                    except Exception as e:
+                                        print(f"Erreur lors de la gestion du document: {e}")
+                                        send_message(sender, "Désolé, une erreur est survenue lors du traitement de votre document.")
 
                             if current_step['expected_answers'] == "no_reply":
                                 # Pas besoin d'attendre l'utilisateur
