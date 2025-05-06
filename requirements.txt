@@ -11,4 +11,3 @@ python-dotenv
 requests
 datetime
 gunicorn
-io
