@@ -1020,14 +1020,13 @@ def webhook():
                                     user_data[sender]['data'][save_key] = text
                                 elif 'document' in message:
                                     media_id = message['document']['id']
-                                    # Télécharger le fichier
-                                    if response.status_code == 200:
+                                    try:
                                         url = f"https://graph.facebook.com/v22.0/{media_id}"
                                         headers = {"Authorization": f"Bearer {ACCESS_TOKEN}"}
                                         response = requests.get(url, headers=headers)
                                         user_data[sender]['data'][save_key] = response.content
                                         print(f"Document téléchargé avec succès pour l'utilisateur {sender}")
-                                    else:
+                                    except:
                                         send_message(sender, "Désolé, je n'ai pas pu télécharger votre document. Pourriez-vous réessayer ?")
 
                             if current_step['expected_answers'] == "no_reply":
