@@ -1047,8 +1047,20 @@ def webhook():
                                         with open(temp_file_path, 'wb') as f:
                                             f.write(file_response.content)
 
-                                        # Evaluate the CV
-                                        cv_evaluation = evaluate_cv_with_openai(temp_file_path, "Évaluez ce CV pour un poste de développeur. Considérez l'expérience, les compétences techniques et la pertinence pour le poste.")
+                                        # Send waiting message
+                                        send_message(sender, "Merci de patienter quelques instants pendant qu'on analyse votre CV...")
+
+                                        # Evaluate the CV immediately
+                                        try:
+                                            cv_evaluation = evaluate_cv_with_openai(
+                                                temp_file_path,
+                                                "Évaluez ce CV pour un poste de développeur. Considérez l'expérience, les compétences techniques et la pertinence pour le poste."
+                                            )
+                                            user_data[sender]['data']['cv_evaluation'] = cv_evaluation
+                                            print(f"CV évalué pour {sender}: {cv_evaluation}")
+                                        except Exception as e:
+                                            print(f"Erreur lors de l'évaluation du CV: {e}")
+                                            user_data[sender]['data']['cv_evaluation'] = "Erreur lors de l'évaluation"
 
                                         # Clean up the temporary file
                                         os.remove(temp_file_path)
@@ -1075,12 +1087,8 @@ def webhook():
                                         # Store both the Drive URL and the CV evaluation
                                         if save_key:
                                             user_data[sender]['data'][save_key] = drive_url
-                                            user_data[sender]['data']['cv_evaluation'] = cv_evaluation
                                             print(f"Document uploadé sur Drive pour {sender}: {drive_url}")
-                                            print(f"Évaluation du CV: {cv_evaluation}")
-
-                                            # Send confirmation message with evaluation
-                                            send_message(sender, f"Votre CV a été reçu et évalué. Voici l'évaluation :\n\n{cv_evaluation}")
+                                            send_message(sender, "Votre CV a été reçu avec succès.")
 
                                     except Exception as e:
                                         print(f"Erreur lors de la gestion du document: {e}")
@@ -1104,10 +1112,42 @@ def webhook():
                                         # Logique spécifique pour le processus recrutement
                                         send_message(sender, "Merci pour vos réponses ! Nous vous contacterons bientôt.")
                                         user_data[sender]['state'] = 'completed'
+
+                                        # Construction de la ligne à enregistrer
+                                        record = [sender]  # Numéro de téléphone WhatsApp
+                                        for key, value in user_data[sender]['data'].items():
+                                            record.append(value)
+                                        print("Données à enregistrer pour le recrutement :", user_data[sender]['data'])
+
+                                        # Ajouter une ligne dans Google Sheets
+                                        try:
+                                            print(f"Tentative d'ajout dans Google Sheets: {record}")
+                                            sheet.append_row(record)
+                                            print(f"✅ Candidat ajouté dans Google Sheet : {record}")
+                                        except Exception as e:
+                                            print(f"❌ Erreur lors de l'ajout dans Google Sheets: {str(e)}")
+                                            # Envoyer un message d'erreur à l'utilisateur
+                                            send_message(sender, "Désolé, une erreur s'est produite lors de l'enregistrement de vos informations. Nous vous contacterons bientôt.")
                                     else:
                                         # Logique spécifique pour le processus formation
                                         send_message(sender, "Merci pour vos réponses ! Nous vous contacterons bientôt.")
                                         user_data[sender]['state'] = 'completed'
+
+                                        # Construction de la ligne à enregistrer
+                                        record = [sender]  # Numéro de téléphone WhatsApp
+                                        for key, value in user_data[sender]['data'].items():
+                                            record.append(value)
+                                        print("Données à enregistrer pour le recrutement :", user_data[sender]['data'])
+                                        # Ajouter une ligne dans Google Sheets
+                                        try:
+                                            print(f"Tentative d'ajout dans Google Sheets: {record}")
+                                            sheet.append_row(record)
+                                            print(f"✅ Candidat ajouté dans Google Sheet : {record}")
+                                        except Exception as e:
+                                            print(f"❌ Erreur lors de l'ajout dans Google Sheets: {str(e)}")
+                                            # Envoyer un message d'erreur à l'utilisateur
+                                            send_message(sender, "Désolé, une erreur s'est produite lors de l'enregistrement de vos informations. Nous vous contacterons bientôt.")
+
                                 else:
                                     send_step_message(sender, user_data[sender]['current_step'], current_process)
 
@@ -1163,6 +1203,7 @@ def webhook():
                                     for key, value in user_data[sender]['data'].items():
                                         record.append(value)
                                     print("Données à enregistrer pour le recrutement :", user_data[sender]['data'])
+
                                     # Ajouter une ligne dans Google Sheets
                                     try:
                                         print(f"Tentative d'ajout dans Google Sheets: {record}")
