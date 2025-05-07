@@ -12,6 +12,7 @@ import pytz
 import os
 from googleapiclient.http import MediaIoBaseUpload
 import io
+from llm import evaluate_cv_with_openai
 
 # Dictionnaires pour la traduction des jours et mois en français
 JOURS = {
@@ -1041,16 +1042,23 @@ def webhook():
                                             send_message(sender, "Désolé, je n'ai pas pu télécharger votre document. Pourriez-vous réessayer ?")
                                             return "OK", 200
 
-                                        import io
-                                        from googleapiclient.http import MediaIoBaseUpload
+                                        # Save the file temporarily
+                                        temp_file_path = f"temp_{file_name}"
+                                        with open(temp_file_path, 'wb') as f:
+                                            f.write(file_response.content)
 
+                                        # Evaluate the CV
+                                        cv_evaluation = evaluate_cv_with_openai(temp_file_path, "Évaluez ce CV pour un poste de développeur. Considérez l'expérience, les compétences techniques et la pertinence pour le poste.")
+
+                                        # Clean up the temporary file
+                                        os.remove(temp_file_path)
+
+                                        # 3. Upload to Google Drive
                                         file_bytes = io.BytesIO(file_response.content)
-
-                                        # 3. Uploader sur Google Drive
                                         media = MediaIoBaseUpload(file_bytes, mimetype=message['document'].get('mime_type', 'application/octet-stream'))
                                         drive_file = {
                                             'name': file_name,
-                                            'parents': ['root']  # ou l'ID d'un dossier spécifique si tu veux
+                                            'parents': ['root']
                                         }
                                         uploaded = drive_service.files().create(body=drive_file, media_body=media, fields='id').execute()
                                         file_id = uploaded.get('id')
@@ -1063,8 +1071,16 @@ def webhook():
 
                                         # 5. Construire l'URL partageable
                                         drive_url = f"https://drive.google.com/file/d/{file_id}/view?usp=sharing"
-                                        user_data[sender]['data'][save_key] = drive_url
-                                        print(f"Document uploadé sur Drive pour {sender}: {drive_url}")
+
+                                        # Store both the Drive URL and the CV evaluation
+                                        if save_key:
+                                            user_data[sender]['data'][save_key] = drive_url
+                                            user_data[sender]['data']['cv_evaluation'] = cv_evaluation
+                                            print(f"Document uploadé sur Drive pour {sender}: {drive_url}")
+                                            print(f"Évaluation du CV: {cv_evaluation}")
+
+                                            # Send confirmation message with evaluation
+                                            send_message(sender, f"Votre CV a été reçu et évalué. Voici l'évaluation :\n\n{cv_evaluation}")
 
                                     except Exception as e:
                                         print(f"Erreur lors de la gestion du document: {e}")
