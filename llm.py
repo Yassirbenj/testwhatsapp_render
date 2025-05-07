@@ -1,6 +1,7 @@
 import os
 import fitz
 import openai
+import json
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -19,7 +20,14 @@ def evaluate_cv_with_openai(pdf_path, question):
 
     # Prepare the messages
     messages = [
-        {"role": "system", "content": "You are a hiring assistant evaluating CVs."},
+        {"role": "system", "content": """You are a hiring assistant evaluating CVs.
+        You must respond with a JSON object containing the following fields:
+        - rate: number between 0 and 100
+        - technical_skills: array of technical skills found in the CV
+        - professional_experience: array of professional experiences with company names and durations
+        - education: array of educational background
+        - general_comment: string with your overall assessment
+        Format your response as a valid JSON object."""},
         {"role": "user", "content": f"""
         Please evaluate the following CV based on the question:
         "{question}"
@@ -27,15 +35,49 @@ def evaluate_cv_with_openai(pdf_path, question):
         CV Content:
         {cv_text}
 
-        Rate the relevance of this CV on a scale of 0 to 100 and provide a short explanation.
+        Provide your evaluation in the following JSON format:
+        {{
+            "rate": <number between 0 and 100>,
+            "technical_skills": ["skill1", "skill2", ...],
+            "professional_experience": [
+                {{
+                    "company": "company name",
+                    "duration": "duration",
+                    "role": "job title"
+                }},
+                ...
+            ],
+            "education": [
+                {{
+                    "degree": "degree name",
+                    "institution": "school name",
+                    "year": "graduation year"
+                }},
+                ...
+            ],
+            "general_comment": "your overall assessment"
+        }}
         """}
     ]
 
     # Make the API call
     response = client.chat.completions.create(
-        model="gpt-4-turbo-preview",  # Using the latest GPT-4 model
+        model="gpt-4-turbo-preview",
         messages=messages,
-        temperature=0
+        temperature=0,
+        response_format={ "type": "json_object" }  # Force JSON response
     )
 
-    return response.choices[0].message.content
+    # Parse the JSON response
+    try:
+        evaluation = json.loads(response.choices[0].message.content)
+        return evaluation
+    except json.JSONDecodeError as e:
+        print(f"Error parsing JSON response: {e}")
+        return {
+            "rate": 0,
+            "technical_skills": [],
+            "professional_experience": [],
+            "education": [],
+            "general_comment": "Error evaluating CV"
+        }

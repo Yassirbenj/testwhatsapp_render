@@ -1056,11 +1056,18 @@ def webhook():
                                                 temp_file_path,
                                                 "Évaluez ce CV pour un poste de développeur. Considérez l'expérience, les compétences techniques et la pertinence pour le poste."
                                             )
-                                            user_data[sender]['data']['cv_evaluation'] = cv_evaluation
+                                            # Store the structured evaluation
+                                            user_data[sender]['data']['cv_evaluation'] = json.dumps(cv_evaluation, ensure_ascii=False)
                                             print(f"CV évalué pour {sender}: {cv_evaluation}")
                                         except Exception as e:
                                             print(f"Erreur lors de l'évaluation du CV: {e}")
-                                            user_data[sender]['data']['cv_evaluation'] = "Erreur lors de l'évaluation"
+                                            user_data[sender]['data']['cv_evaluation'] = json.dumps({
+                                                "rate": 0,
+                                                "technical_skills": [],
+                                                "professional_experience": [],
+                                                "education": [],
+                                                "general_comment": "Erreur lors de l'évaluation"
+                                            }, ensure_ascii=False)
 
                                         # Clean up the temporary file
                                         os.remove(temp_file_path)
