@@ -260,10 +260,9 @@ def webhook():
                                     print(f"Utilisateur {sender} a terminé le process principal (no_reply). Passage à la prise de RDV.")
                                     send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
                                     user_data[sender]['state'] = 'ask_start_date'
+                                    return "OK", 200
 
-                                else:
-                                    send_step_message(sender, user_data[sender]['current_step'], current_process)
-
+                                send_step_message(sender, user_data[sender]['current_step'], current_process)
                                 return "OK", 200
 
                             if current_step['expected_answers'] != "free_text":
@@ -279,6 +278,13 @@ def webhook():
                                 user_data[sender]['current_step'] = next_step.get(text, 99)
                             else:
                                 user_data[sender]['current_step'] = next_step
+
+                            # Vérifier si on a atteint la fin du processus
+                            if user_data[sender]['current_step'] >= len(current_process):
+                                print(f"Utilisateur {sender} a terminé le process principal. Passage à la prise de RDV.")
+                                send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
+                                user_data[sender]['state'] = 'ask_start_date'
+                                return "OK", 200
 
                             send_step_message(sender, user_data[sender]['current_step'], current_process)
                             return "OK", 200
