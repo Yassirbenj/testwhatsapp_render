@@ -351,9 +351,44 @@ def webhook():
 
 # === ENVOI DE MESSAGES WHATSAPP ===
 
+def load_services():
+    """Charge les services depuis le fichier services.json"""
+    try:
+        with open('services.json', 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Erreur lors du chargement des services: {str(e)}")
+        return {"services": []}
+
+def format_services_list(services):
+    """Formate la liste des services pour l'affichage"""
+    formatted_list = []
+    for service in services['services']:
+        formatted_list.append(f"{service['id']}️⃣ {service['name']} ({service['duration']} min)")
+    return "\n".join(formatted_list)
+
+def get_services_ids(services):
+    """Récupère la liste des IDs des services"""
+    return [service['id'] for service in services['services']]
+
 def send_step_message(to_number, step_index, process):
-    message = process[step_index]['message']
+    """Envoie le message de l'étape en cours avec les données dynamiques si nécessaire"""
+    step = process[step_index]
+    message = step['message']
+    expected_answers = step['expected_answers']
+
+    # Gérer les données dynamiques si présentes
+    if 'dynamic_data' in step:
+        if 'services_file' in step['dynamic_data']:
+            services = load_services()
+            # Remplacer les placeholders dans le message
+            message = message.replace('{{services_list}}', format_services_list(services))
+            # Remplacer les placeholders dans les réponses attendues
+            if expected_answers == '{{services_ids}}':
+                expected_answers = get_services_ids(services)
+
     send_message(to_number, message)
+    return expected_answers
 
 def send_message(to_number, message):
     url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
