@@ -239,6 +239,9 @@ def webhook():
                         step_index = user_data[sender]['current_step']
                         current_process = user_data[sender]['process']
 
+                        # pour debug
+                        print(f"État: {state}, step index: {step_index}, Processus: {current_process}, lenght : {len(current_process)}")
+
                         if step_index < len(current_process):
                             current_step = current_process[step_index]
 
@@ -279,10 +282,14 @@ def webhook():
                             else:
                                 user_data[sender]['current_step'] = next_step
 
+                            # pour debug
+                            print(f"next step is : {user_data[sender]['current_step']}")
+
                             # Vérifier si on a atteint la fin du processus
                             if user_data[sender]['current_step'] >= len(current_process):
                                 print(f"Utilisateur {sender} a terminé le process principal. Passage à la prise de RDV.")
-                                send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
+                                send_message(sender, "Merci pour vos réponses 🙏. Maintenant, choisissons ensemble un créneau pour votre rendez-vous.")
+                                send_date_buttons(sender)  # Envoyer les boutons de date
                                 user_data[sender]['state'] = 'ask_start_date'
                                 return "OK", 200
 
@@ -296,17 +303,25 @@ def webhook():
 
                                 if current_process == process_rdv:
                                     # Proposer une date pour prise de rendez-vous
-                                    send_message(sender, "Merci pour vos réponses 🙏. Maintenant, choisissons ensemble un créneau pour votre rendez-vous.")
+                                    #send_message(sender, "Merci pour vos réponses 🙏. Maintenant, choisissons ensemble un créneau pour votre rendez-vous.")
                                     send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
                                     user_data[sender]['state'] = 'ask_start_date'
 
 
                             if state == 'ask_start_date':
-                                # Récupérer la date envoyée par l'utilisateur
+                                # La date peut venir soit des boutons, soit d'une saisie manuelle
                                 try:
-                                    start_date = datetime.strptime(text, "%Y-%m-%d")
+                                    # Si c'est une réponse de bouton, le format est déjà YYYY-MM-DD
+                                    if text in [datetime.now().strftime("%Y-%m-%d"),
+                                              (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d"),
+                                              (datetime.now() + timedelta(days=2)).strftime("%Y-%m-%d")]:
+                                        start_date = datetime.strptime(text, "%Y-%m-%d")
+                                    else:
+                                        # Sinon, essayer de parser la date saisie manuellement
+                                        start_date = datetime.strptime(text, "%Y-%m-%d")
                                 except Exception:
                                     send_message(sender, "Merci d'indiquer une date au format AAAA-MM-JJ (ex: 2024-06-01)")
+                                    send_date_buttons(sender)  # Renvoyer les boutons
                                     return "OK", 200
 
                                 slots = find_available_slots(start_date)
@@ -437,6 +452,51 @@ def send_message(to_number, message):
         print(f"Error code: {error_data.get('code')}")
         if 'error_data' in error_data:
             print(f"Additional error data: {error_data['error_data']}")
+
+def send_date_buttons(sender):
+    """Envoie les boutons de sélection de date"""
+    url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {ACCESS_TOKEN}",
+        "Content-Type": "application/json"
+    }
+
+    # Calculer les dates pour les 7 prochains jours
+    today = datetime.now()
+    dates = []
+    for i in range(7):
+        date = today + timedelta(days=i)
+        dates.append(date.strftime("%Y-%m-%d"))
+
+    # Créer les boutons
+    buttons = []
+    for date in dates:
+        formatted_date = datetime.strptime(date, "%Y-%m-%d").strftime("%d/%m/%Y")
+        buttons.append({
+            "type": "reply",
+            "reply": {
+                "id": date,
+                "title": formatted_date
+            }
+        })
+
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": sender,
+        "type": "interactive",
+        "interactive": {
+            "type": "button",
+            "body": {
+                "text": "Choisissez une date pour votre rendez-vous :"
+            },
+            "action": {
+                "buttons": buttons[:3]  # WhatsApp limite à 3 boutons
+            }
+        }
+    }
+
+    response = requests.post(url, headers=headers, data=json.dumps(payload))
+    print("Réponse envoi boutons:", response.status_code, response.json())
 
 # === RUN APP ===
 if __name__ == '__main__':
