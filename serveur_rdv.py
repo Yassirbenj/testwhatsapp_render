@@ -202,42 +202,35 @@ def webhook():
                     if messages:
                         message = messages[0]
                         sender = message['from']
+                        if 'text' in message:
+                            text = message['text'].get('body')
+                        else:
+                            send_message(sender,"Merci de répondre avec un message texte")
+                            return "OK", 200
 
                         # Nettoyer les anciennes conversations
                         cleanup_old_conversations()
 
                         # Gérer la commande de réinitialisation
-                        if 'text' in message:
-                            text = message['text'].get('body')
-                            if text.lower() in ['reset', 'recommencer', 'nouveau', 'start']:
-                                if sender in user_data:
-                                    del user_data[sender]
-                                # Utiliser le premier message du process_rdv
-                                send_step_message(sender, 0, process_rdv)
-                                return "OK", 200
+                        if text.lower() in ['reset', 'recommencer', 'nouveau', 'start']:
+                            if sender in user_data:
+                                del user_data[sender]
+                            # Utiliser le premier message du process_rdv
+                            send_step_message(sender, 0, process_rdv)
+                            return "OK", 200
 
                         if sender not in user_data:
                             # Premier message - choisir le processus
-                            if 'text' in message:
-                                text = message['text'].get('body')
-                                if text == "1":
-                                    user_data[sender] = {
-                                        'state': 'initial',
-                                        'current_step': 0,
-                                        'data': {},
-                                        'process': process_rdv,
-                                        'last_activity': datetime.now()
-                                    }
-                                    send_step_message(sender, 0, process_rdv)
-                                else:
-                                    # Message initial pour choisir le processus
-                                    send_step_message(sender, 0, process_rdv)
+                            user_data[sender] = {
+                                'state': 'initial',
+                                'current_step': 0,
+                                'data': {},
+                                'process': process_rdv,
+                                'last_activity': datetime.now()
+                            }
+                            send_step_message(sender, 0, process_rdv)
+
                             return "OK", 200
-
-                        if 'text' in message:
-                            text = message['text'].get('body')
-                        # Gérer les fichiers média (CV)
-
 
                         # Mettre à jour le timestamp de dernière activité
                         user_data[sender]['last_activity'] = datetime.now()
@@ -252,9 +245,7 @@ def webhook():
                             # === SAUVEGARDE de la réponse utilisateur ===
                             save_key = current_step.get('save_as')
                             if save_key:
-                                if 'text' in message:
-                                    text = message['text'].get('body')
-                                    user_data[sender]['data'][save_key] = text
+                                user_data[sender]['data'][save_key] = text
 
                             if current_step['expected_answers'] == "no_reply":
                                 # Pas besoin d'attendre l'utilisateur
@@ -266,10 +257,9 @@ def webhook():
 
                                 # ⚡ Directement lancer la suite
                                 if user_data[sender]['current_step'] >= len(current_process):
-                                    if current_process == process_rdv:
-                                        print(f"Utilisateur {sender} a terminé le process principal (no_reply). Passage à la prise de RDV.")
-                                        send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
-                                        user_data[sender]['state'] = 'ask_start_date'
+                                    print(f"Utilisateur {sender} a terminé le process principal (no_reply). Passage à la prise de RDV.")
+                                    send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
+                                    user_data[sender]['state'] = 'ask_start_date'
 
                                 else:
                                     send_step_message(sender, user_data[sender]['current_step'], current_process)
@@ -301,21 +291,6 @@ def webhook():
                                     send_message(sender, "Merci pour vos réponses 🙏. Maintenant, choisissons ensemble un créneau pour votre rendez-vous.")
                                     send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
                                     user_data[sender]['state'] = 'ask_start_date'
-
-                                    # Construction de la ligne à enregistrer
-                                    record = [sender]  # Numéro de téléphone WhatsApp
-                                    for key, value in user_data[sender]['data'].items():
-                                        record.append(value)
-                                    print("Données à enregistrer pour le recrutement :", user_data[sender]['data'])
-                                    # Ajouter une ligne dans Google Sheets
-                                    try:
-                                        print(f"Tentative d'ajout dans Google Sheets: {record}")
-                                        sheet.append_row(record)
-                                        print(f"✅ Lead ajouté dans Google Sheet : {record}")
-                                    except Exception as e:
-                                        print(f"❌ Erreur lors de l'ajout dans Google Sheets: {str(e)}")
-                                        # Envoyer un message d'erreur à l'utilisateur
-                                        send_message(sender, "Désolé, une erreur s'est produite lors de l'enregistrement de vos informations. Nous vous contacterons bientôt.")
 
 
                             if state == 'ask_start_date':
@@ -356,6 +331,20 @@ def webhook():
                                 link = create_appointment(sender, slot_start, slot_end)
                                 send_message(sender, f"Votre rendez-vous est confirmé ! 📅\nLien Google Calendar : {link}")
                                 user_data[sender]['state'] = 'completed'
+
+                                # Construction de la ligne à enregistrer
+                                record = [sender]  # Numéro de téléphone WhatsApp
+                                for key, value in user_data[sender]['data'].items():
+                                    record.append(value)
+                                print("Données à enregistrer pour le recrutement :", user_data[sender]['data'])
+                                # Ajouter une ligne dans Google Sheets
+                                try:
+                                    print(f"Tentative d'ajout dans Google Sheets: {record}")
+                                    sheet.append_row(record)
+                                    print(f"✅ Lead ajouté dans Google Sheet : {record}")
+                                except Exception as e:
+                                    print(f"❌ Erreur lors de l'ajout dans Google Sheets: {str(e)}")
+
 
 
         return "OK", 200
