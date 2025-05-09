@@ -79,18 +79,42 @@ TIMEZONE = 'Africa/Casablanca'
 print(calendar_service.calendarList().list().execute())
 print(drive_service.files().list().execute())
 # Fonction de recherche de créneaux
-def find_available_slots(start_date, num_days=5):
+def find_available_slots(start_date, service_duration, num_days=5):
+    # En mode test, retourner des créneaux fictifs
+    if os.getenv('TEST_MODE') == 'True':
+        timezone = pytz.timezone(TIMEZONE)
+        slots = []
+        current_date = start_date
+
+        # Convertir la durée en heures (arrondi au supérieur)
+        duration_hours = (service_duration + 59) // 60
+        print(f"\n[Info] Durée du service: {service_duration} minutes")
+
+        # Créer 3 créneaux fictifs avec la bonne durée
+        for i in range(3):
+            slot_start = timezone.localize(datetime.combine(current_date, time(9 + i, 0)))
+            slot_end = slot_start + timedelta(hours=duration_hours)
+            slots.append((slot_start, slot_end))
+
+        return slots
+
+    # Code original pour le mode production
     timezone = pytz.timezone(TIMEZONE)
     slots = []
 
-    # Définir les heures d'ouverture
-    possible_hours = [9, 10, 11, 14, 15, 16, 17]
+    # Convertir la durée en heures (arrondi au supérieur)
+    duration_hours = (service_duration + 59) // 60
 
-    # Plage de recherche
+    # Ajuster les heures possibles en fonction de la durée
+    possible_hours = []
+    for hour in [9, 10, 11, 14, 15, 16, 17]:
+        # Vérifier si le créneau complet tient dans la journée
+        if hour + duration_hours <= 18:  # On s'arrête à 18h
+            possible_hours.append(hour)
+
     current_date = start_date
     end_date = start_date + timedelta(days=num_days)
 
-    # Convertir en UTC pour Google Calendar
     time_min = timezone.localize(datetime.combine(current_date, time.min)).astimezone(pytz.utc)
     time_max = timezone.localize(datetime.combine(end_date, time.max)).astimezone(pytz.utc)
 
@@ -106,12 +130,11 @@ def find_available_slots(start_date, num_days=5):
     while current_date <= end_date:
         for hour in possible_hours:
             local_start = timezone.localize(datetime.combine(current_date, time(hour, 0)))
-            local_end = local_start + timedelta(hours=1)
+            local_end = local_start + timedelta(hours=duration_hours)
 
             start_utc = local_start.astimezone(pytz.utc).isoformat()
             end_utc = local_end.astimezone(pytz.utc).isoformat()
 
-            # Comparaison stricte avec tous les événements occupés
             overlapping = any(
                 (busy['start'] <= start_utc < busy['end']) or
                 (busy['start'] < end_utc <= busy['end']) or
@@ -127,16 +150,24 @@ def find_available_slots(start_date, num_days=5):
     return slots[:3]
 
 # Fonction créer rendez-vous
-def create_appointment(sender, slot_start, slot_end):
-    user_info = user_data[sender]['data']
+def create_appointment(sender, slot_start, slot_end, service_name, service_duration):
+    # En mode test, simuler la création d'un rendez-vous
+    if os.getenv('TEST_MODE') == 'True':
+        print(f"\n[Création de rendez-vous simulée]")
+        print(f"Date: {format_date_fr(slot_start)}")
+        print(f"Durée: {service_duration} minutes")
+        print(f"Service: {service_name}")
+        print(f"Client: {user_data[sender]['data'].get('Nom complet', 'Client')}")
+        return "https://calendar.google.com/mock-link"
 
+    # Code original pour le mode production
+    user_info = user_data[sender]['data']
     client_name = user_info.get('Nom complet') or user_info.get('Nom') or 'Client'
-    service = user_info.get('Service souhaité', 'Service non précisé')
     modele = user_info.get('Modèle véhicule', '')
     annee = user_info.get('Année véhicule', '')
 
     description = f"""🧾 Détails du rendez-vous :
-- Service : {service}
+- Service : {service_name} ({service_duration} minutes)
 - Véhicule : {modele} ({annee})
 - Client WhatsApp : {sender}"""
 
@@ -240,7 +271,7 @@ def webhook():
                         current_process = user_data[sender]['process']
 
                         # pour debug
-                        print(f"État: {state}, step index: {step_index}, Processus: {current_process}, lenght : {len(current_process)}")
+                        print(f"État: {state}, step index: {step_index}, longueur du processus: {len(current_process)}")
 
                         if step_index < len(current_process):
                             current_step = current_process[step_index]
@@ -262,6 +293,7 @@ def webhook():
                                 if user_data[sender]['current_step'] >= len(current_process):
                                     print(f"Utilisateur {sender} a terminé le process principal (no_reply). Passage à la prise de RDV.")
                                     send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
+                                    send_date_buttons(sender)
                                     user_data[sender]['state'] = 'ask_start_date'
                                     return "OK", 200
 
@@ -304,7 +336,6 @@ def webhook():
                                 if current_process == process_rdv:
                                     # Proposer une date pour prise de rendez-vous
                                     send_message(sender, "Merci pour vos réponses 🙏. Maintenant, choisissons ensemble un créneau pour votre rendez-vous.")
-                                    send_date_buttons(sender)  # Envoyer les boutons de date
                                     user_data[sender]['state'] = 'ask_start_date'
 
                             if state == 'ask_start_date':
@@ -323,7 +354,26 @@ def webhook():
                                     send_date_buttons(sender)  # Renvoyer les boutons
                                     return "OK", 200
 
-                                slots = find_available_slots(start_date)
+                                service_id = user_data[sender]['data'].get('Service souhaité')
+                                service_duration = None
+                                service_name = None
+
+                                # Charger les informations du service
+                                with open('services.json', 'r') as f:
+                                    services = json.load(f)
+                                    for service in services['services']:
+                                        if service['id'] == service_id:
+                                            service_duration = int(service['duration'])
+                                            service_name = service['name']
+                                            break
+
+                                # Vérifier que nous avons bien trouvé le service
+                                if service_duration is None or service_name is None:
+                                    print(f"Service non trouvé pour l'ID: {service_id}")
+                                    send_message(sender, "Désolé, une erreur est survenue. Veuillez réessayer.")
+                                    return "OK", 200
+
+                                slots = find_available_slots(start_date, service_duration)
                                 if not slots:
                                     send_message(sender, "Désolé, aucun créneau n'est disponible à partir de cette date. Merci d'en proposer une autre.")
                                     send_date_buttons(sender)  # Renvoyer les boutons
@@ -350,16 +400,51 @@ def webhook():
                                     send_message(sender, "Merci de répondre par le numéro du créneau choisi.")
                                     return "OK", 200
 
+                                # Récupérer les informations du service
+                                service_id = user_data[sender]['data'].get('Service souhaité')
+                                with open('services.json', 'r') as f:
+                                    services = json.load(f)
+                                    for service in services['services']:
+                                        if service['id'] == service_id:
+                                            # Stocker les informations du service dans user_data
+                                            user_data[sender]['service_info'] = {
+                                                'name': service['name'],
+                                                'duration': int(service['duration'])
+                                            }
+                                            break
+
+                                # Vérifier que nous avons bien trouvé le service
+                                if user_data[sender]['service_info'] is None:
+                                    print(f"Service non trouvé pour l'ID: {service_id}")
+                                    send_message(sender, "Désolé, une erreur est survenue. Veuillez réessayer.")
+                                    return "OK", 200
+
                                 # Créer le rendez-vous
-                                link = create_appointment(sender, slot_start, slot_end)
+                                service_info = user_data[sender].get('service_info', {})
+                                link = create_appointment(
+                                    sender,
+                                    slot_start,
+                                    slot_end,
+                                    service_info.get('name'),
+                                    service_info.get('duration')
+                                )
                                 send_message(sender, f"Votre rendez-vous est confirmé ! 📅\nLien Google Calendar : {link}")
                                 user_data[sender]['state'] = 'completed'
+
+                                # Stocker les informations du rendez-vous dans user_data
+                                user_data[sender]['data'].update({
+                                    'Date RDV': format_date_fr(slot_start),
+                                    'Heure fin RDV': format_date_fr(slot_end),
+                                    'Service': service_info.get('name'),
+                                    'Durée service': f"{service_info.get('duration')} min"
+                                })
 
                                 # Construction de la ligne à enregistrer
                                 record = [sender]  # Numéro de téléphone WhatsApp
                                 for key, value in user_data[sender]['data'].items():
                                     record.append(value)
-                                print("Données à enregistrer pour le recrutement :", user_data[sender]['data'])
+
+                                print("Données à enregistrer dans Google Sheet :", record)
                                 # Ajouter une ligne dans Google Sheets
                                 try:
                                     print(f"Tentative d'ajout dans Google Sheets: {record}")
@@ -417,6 +502,20 @@ def send_step_message(to_number, step_index, process):
     return expected_answers
 
 def send_message(to_number, message):
+    print(f"\n[Message envoyé]: {message}")
+    # Si c'est un message de créneaux, afficher la durée
+    if "Voici les créneaux disponibles" in message:
+        service_id = user_data.get('test_user', {}).get('data', {}).get('Service souhaité')
+        try:
+            with open('services.json', 'r') as f:
+                services = json.load(f)
+                for service in services['services']:
+                    if service['id'] == service_id:
+                        print(f"\n[Info] Durée du service '{service['name']}': {service['duration']} minutes")
+                        break
+        except Exception as e:
+            print(f"Erreur lors du chargement des services: {e}")
+
     url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
     headers = {
         "Authorization": f"Bearer {ACCESS_TOKEN}",
@@ -499,6 +598,98 @@ def send_date_buttons(sender):
     response = requests.post(url, headers=headers, data=json.dumps(payload))
     print("Réponse envoi boutons:", response.status_code, response.json())
 
+def test_process_local():
+    """Test local du processus de rendez-vous en ligne de commande"""
+    print("=== Test du processus de rendez-vous ===")
+
+    # Simuler un utilisateur
+    test_user = "test_user"
+
+    # Initialiser l'utilisateur
+    user_data[test_user] = {
+        'state': 'initial',
+        'current_step': 0,
+        'data': {},
+        'process': process_rdv,
+        'last_activity': datetime.now()
+    }
+
+    # Simuler les messages
+    test_messages = [
+        "1",  # Prendre rendez-vous
+        "John Doe",  # Nom
+        "1",  # Service (Révision)
+        "Renault Clio 2019",  # Véhicule
+        "Ok",
+        "10 juin 2025",
+        "2025-05-09",  # Date (format YYYY-MM-DD comme dans les boutons)
+        "1"  # Créneau
+    ]
+
+    # Simuler la conversation
+    for message in test_messages:
+        print("\n=== Nouveau message ===")
+        print(f"Message reçu: {message}")
+
+        # Simuler une requête WhatsApp
+        test_request = {
+            "entry": [{
+                "changes": [{
+                    "value": {
+                        "messages": [{
+                            "from": test_user,
+                            "text": {"body": message}
+                        }]
+                    }
+                }]
+            }]
+        }
+
+        # Appeler le webhook avec la requête simulée
+        with app.test_client() as client:
+            response = client.post('/webhook', json=test_request)
+            print(f"État actuel: {user_data[test_user]['state']}")
+            print(f"Étape actuelle: {user_data[test_user]['current_step']}")
+            print(f"Données collectées: {user_data[test_user]['data']}")
+            print("---")
+
 # === RUN APP ===
 if __name__ == '__main__':
-    app.run(port=5000)
+    # Mode test
+    if os.getenv('TEST_MODE') == 'True':
+        # Désactiver les dépendances externes pour le test
+        import types
+
+        # Créer des mock objects pour les services
+        class MockSheet:
+            def append_row(self, row):
+                pass  # Ne rien afficher
+
+        class MockService:
+            def __init__(self, name):
+                self.name = name
+
+            def __getattr__(self, name):
+                return lambda *args, **kwargs: None  # Ne rien afficher
+
+        # Remplacer les services réels par des mocks
+        sheet = MockSheet()
+        calendar_service = MockService("Calendar")
+        drive_service = MockService("Drive")
+
+        # Modifier la fonction send_message pour le test
+        def send_message(to_number, message):
+            print(f"\n[Message envoyé]: {message}")
+
+        # Modifier la fonction send_date_buttons pour le test
+        def send_date_buttons(sender):
+            print(f"\n[Options de date disponibles]")
+            today = datetime.now()
+            for i in range(3):
+                date = today + timedelta(days=i)
+                print(f"- {date.strftime('%d/%m/%Y')}")
+
+        # Lancer le test
+        test_process_local()
+    else:
+        app.run(port=5000)
