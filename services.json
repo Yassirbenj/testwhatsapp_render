@@ -1,0 +1,19 @@
+{
+  "services": [
+    {
+      "id": "1",
+      "name": "Révision",
+      "duration": 120
+    },
+    {
+      "id": "2",
+      "name": "Réparation",
+      "duration": 180
+    },
+    {
+      "id": "3",
+      "name": "Carrosserie",
+      "duration": 240
+    }
+  ]
+}

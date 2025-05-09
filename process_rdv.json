@@ -1,0 +1,34 @@
+[
+  {
+    "message": "Bonjour 👋, bienvenue chez Garage Autobest ! Quel est votre prénom et nom ?",
+    "expected_answers": "free_text",
+    "next_step": 1,
+    "save_as": "Nom complet"
+  },
+  {
+    "message": "Merci !\nQuel service souhaitez-vous ?\n{{services_list}}",
+    "expected_answers": "{{services_ids}}",
+    "next_step": 2,
+    "save_as": "Service souhaité",
+    "dynamic_data": {
+      "services_file": "services.json"
+    }
+  },
+  {
+    "message": "Très bien. Quel est le modèle de votre véhicule ?",
+    "expected_answers": "free_text",
+    "next_step": 3,
+    "save_as": "Modèle véhicule"
+  },
+  {
+    "message": "Et quelle est l'année de mise en circulation de votre véhicule ? (ex: 2019)",
+    "expected_answers": "free_text",
+    "next_step": 4,
+    "save_as": "Année véhicule"
+  },
+  {
+    "message": "Merci beaucoup ! 🙏 Nous allons maintenant choisir ensemble un créneau pour votre rendez-vous.",
+    "expected_answers": "no_reply",
+    "next_step": 99
+  }
+]
