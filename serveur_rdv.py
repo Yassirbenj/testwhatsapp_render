@@ -303,10 +303,9 @@ def webhook():
 
                                 if current_process == process_rdv:
                                     # Proposer une date pour prise de rendez-vous
-                                    #send_message(sender, "Merci pour vos réponses 🙏. Maintenant, choisissons ensemble un créneau pour votre rendez-vous.")
-                                    send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
+                                    send_message(sender, "Merci pour vos réponses 🙏. Maintenant, choisissons ensemble un créneau pour votre rendez-vous.")
+                                    send_date_buttons(sender)  # Envoyer les boutons de date
                                     user_data[sender]['state'] = 'ask_start_date'
-
 
                             if state == 'ask_start_date':
                                 # La date peut venir soit des boutons, soit d'une saisie manuelle
@@ -327,6 +326,7 @@ def webhook():
                                 slots = find_available_slots(start_date)
                                 if not slots:
                                     send_message(sender, "Désolé, aucun créneau n'est disponible à partir de cette date. Merci d'en proposer une autre.")
+                                    send_date_buttons(sender)  # Renvoyer les boutons
                                     return "OK", 200
 
                                 # Proposer les créneaux à l'utilisateur
@@ -470,7 +470,7 @@ def send_date_buttons(sender):
 
     # Créer les boutons
     buttons = []
-    for date in dates:
+    for date in dates[:3]:  # Limite à 3 boutons
         formatted_date = datetime.strptime(date, "%Y-%m-%d").strftime("%d/%m/%Y")
         buttons.append({
             "type": "reply",
@@ -490,11 +490,12 @@ def send_date_buttons(sender):
                 "text": "Choisissez une date pour votre rendez-vous :"
             },
             "action": {
-                "buttons": buttons[:3]  # WhatsApp limite à 3 boutons
+                "buttons": buttons
             }
         }
     }
 
+    print("Envoi des boutons de date:", payload)  # Debug
     response = requests.post(url, headers=headers, data=json.dumps(payload))
     print("Réponse envoi boutons:", response.status_code, response.json())
 
