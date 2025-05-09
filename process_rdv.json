@@ -1,8 +1,19 @@
 [
   {
-    "message": "Bonjour 👋, bienvenue chez Garage Autobest ! Quel est votre prénom et nom ?",
+    "message": "Bonjour 👋, bienvenue chez Garage Autobest !\nComment puis-je vous aider ?\n\n1- Prendre rendez-vous\n2- Modifier un rendez-vous\n3- Annuler un rendez-vous\n4- Autres",
+    "expected_answers": ["1", "2", "3", "4"],
+    "next_step": {
+      "1": 1,
+      "2": 3,
+      "3": 4,
+      "4": 5
+    },
+    "save_as": "Action souhaité"
+    },
+  {
+    "message": "D'accord, quel est votre prénom et nom ?",
     "expected_answers": "free_text",
-    "next_step": 1,
+    "next_step": 2,
     "save_as": "Nom complet"
   },
   {
@@ -15,16 +26,10 @@
     }
   },
   {
-    "message": "Très bien. Quel est le modèle de votre véhicule ?",
-    "expected_answers": "free_text",
-    "next_step": 3,
-    "save_as": "Modèle véhicule"
-  },
-  {
-    "message": "Et quelle est l'année de mise en circulation de votre véhicule ? (ex: 2019)",
+    "message": "Très bien. Quel est le modèle de votre véhicule et son année de mise en circulation ?",
     "expected_answers": "free_text",
     "next_step": 4,
-    "save_as": "Année véhicule"
+    "save_as": "Question supplémentaire"
   },
   {
     "message": "Merci beaucoup ! 🙏 Nous allons maintenant choisir ensemble un créneau pour votre rendez-vous.",

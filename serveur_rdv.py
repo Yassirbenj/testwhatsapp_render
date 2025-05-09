@@ -212,10 +212,9 @@ def webhook():
                             if text.lower() in ['reset', 'recommencer', 'nouveau', 'start']:
                                 if sender in user_data:
                                     del user_data[sender]
-                                send_message(sender, "Bienvenue ! Que souhaitez-vous faire ?\n1️⃣ Prendre rendez-vous")
+                                # Utiliser le premier message du process_rdv
+                                send_step_message(sender, 0, process_rdv)
                                 return "OK", 200
-
-
 
                         if sender not in user_data:
                             # Premier message - choisir le processus
@@ -230,10 +229,9 @@ def webhook():
                                         'last_activity': datetime.now()
                                     }
                                     send_step_message(sender, 0, process_rdv)
-
                                 else:
                                     # Message initial pour choisir le processus
-                                    send_message(sender, "Bienvenue ! Que souhaitez-vous faire ?\n1️⃣ Prendre rendez-vous ")
+                                    send_step_message(sender, 0, process_rdv)
                             return "OK", 200
 
                         if 'text' in message:
