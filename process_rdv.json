@@ -9,7 +9,7 @@
       "4": 5
     },
     "save_as": "Action souhaité"
-    },
+  },
   {
     "message": "D'accord, quel est votre prénom et nom ?",
     "expected_answers": "free_text",
@@ -19,7 +19,7 @@
   {
     "message": "Merci !\nQuel service souhaitez-vous ?\n{{services_list}}",
     "expected_answers": "{{services_ids}}",
-    "next_step": 2,
+    "next_step": 3,
     "save_as": "Service souhaité",
     "dynamic_data": {
       "services_file": "services.json"

@@ -267,7 +267,9 @@ def webhook():
                                 return "OK", 200
 
                             if current_step['expected_answers'] != "free_text":
-                                if text not in current_step['expected_answers']:
+                                # Utiliser les réponses attendues stockées si disponibles
+                                valid_answers = user_data[sender].get('current_expected_answers', current_step['expected_answers'])
+                                if text not in valid_answers:
                                     send_message(sender, "Merci de répondre avec une option valide.")
                                     return "OK", 200
 
@@ -386,6 +388,9 @@ def send_step_message(to_number, step_index, process):
             # Remplacer les placeholders dans les réponses attendues
             if expected_answers == '{{services_ids}}':
                 expected_answers = get_services_ids(services)
+                # Stocker les réponses attendues dans user_data pour la validation
+                if to_number in user_data:
+                    user_data[to_number]['current_expected_answers'] = expected_answers
 
     send_message(to_number, message)
     return expected_answers
