@@ -393,23 +393,32 @@ def webhook():
                                     send_date_buttons(sender)  # Renvoyer les boutons
                                     return "OK", 200
 
-                                # Proposer les créneaux à l'utilisateur avec des boutons
+                                # Proposer les créneaux à l'utilisateur avec une liste
                                 url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
                                 headers = {
                                     "Authorization": f"Bearer {ACCESS_TOKEN}",
                                     "Content-Type": "application/json"
                                 }
 
-                                # Créer les boutons pour chaque créneau
-                                buttons = []
+                                # Créer les sections pour la liste
+                                sections = [{
+                                    "title": "Créneaux disponibles",
+                                    "rows": []
+                                }]
+
+                                # Ajouter chaque créneau à la liste
                                 for idx, (slot_start, slot_end) in enumerate(slots, 1):
-                                    formatted_time = f"{format_date_fr(slot_start)} - {format_date_fr(slot_end)}"
-                                    buttons.append({
-                                        "type": "reply",
-                                        "reply": {
-                                            "id": str(idx),
-                                            "title": formatted_time
-                                        }
+                                    # Formater les horaires
+                                    start_time = format_date_fr(slot_start)
+                                    end_time = format_date_fr(slot_end)
+
+                                    # Calculer la durée
+                                    duration = (slot_end - slot_start).total_seconds() / 60
+
+                                    sections[0]["rows"].append({
+                                        "id": str(idx),
+                                        "title": f"C Créneau {idx}",
+                                        "description": f"{start_time} - {end_time} ({int(duration)} min)"
                                     })
 
                                 payload = {
@@ -417,19 +426,20 @@ def webhook():
                                     "to": sender,
                                     "type": "interactive",
                                     "interactive": {
-                                        "type": "button",
+                                        "type": "list",
                                         "body": {
                                             "text": "Voici les créneaux disponibles :"
                                         },
                                         "action": {
-                                            "buttons": buttons
+                                            "button": "Choisir un créneau",
+                                            "sections": sections
                                         }
                                     }
                                 }
 
-                                print("Envoi des boutons de créneaux:", payload)  # Debug
+                                print("Envoi de la liste des créneaux:", payload)  # Debug
                                 response = requests.post(url, headers=headers, data=json.dumps(payload))
-                                print("Réponse envoi boutons:", response.status_code, response.json())
+                                print("Réponse envoi message:", response.status_code, response.json())
 
                                 # Stocker les créneaux proposés pour ce user
                                 user_data[sender]['available_slots'] = slots
