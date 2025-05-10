@@ -529,7 +529,7 @@ def webhook():
                                             send_confirmation_buttons(sender, appointment_id)
                                             # Sauvegarder l'ID du rendez-vous dans la session
                                             user_data[sender]["pending_cancel_id"] = appointment_id
-                                            user_data[sender].get("state") == "pending_cancel_confirmation"
+                                            user_data[sender]["state"] = "pending_cancel_confirmation"
                                             return "OK", 200
                                         elif interactive_type == "button_reply":
                                             button_id = message["interactive"]["button_reply"]["id"]
@@ -538,28 +538,31 @@ def webhook():
                                             user_data[sender]["pending_cancel_id"] = appointment_id
                                             user_data[sender]["state"] = "pending_cancel_confirmation"
                                             return "OK", 200
-                                elif user_data[sender].get["state"] == "pending_cancel_confirmation":
-                                    button_id = message["interactive"]["button_reply"]["id"]
-                                    if button_id.startswith("Oui"):
-                                        # L'utilisateur a confirmé l'annulation
-                                        appointment_id = user_data[sender]["pending_cancel_id"]
-                                        if cancel_appointment(appointment_id):
-                                            send_message(sender, "✅ Votre rendez-vous a été annulé avec succès.")
-                                        else:
-                                            send_message(sender, "❌ Désolé, une erreur s'est produite lors de l'annulation du rendez-vous.")
-                                        # Nettoyer la session
-                                        user_data[sender].pop("pending_cancel_id", None)
-                                        user_data[sender].pop("state", None)
-                                        user_data[sender].pop("process_type", None)
-                                        return "OK", 200
-                                    elif button_id.startswith("Non"):
-                                        # L'utilisateur a annulé l'annulation
-                                        send_message(sender, "✅ L'annulation a été annulée. Votre rendez-vous est maintenu.")
-                                        # Nettoyer la session
-                                        user_data[sender].pop("pending_cancel_id", None)
-                                        user_data[sender].pop("state", None)
-                                        user_data[sender].pop("process_type", None)
-                                        return "OK", 200
+                                elif user_data[sender].get("state") == "pending_cancel_confirmation":
+                                    if message.get("interactive") and message["interactive"].get("type") == "button_reply":
+                                        button_id = message["interactive"]["button_reply"]["id"]
+                                        if button_id.startswith("Oui"):
+                                            # L'utilisateur a confirmé l'annulation
+                                            appointment_id = user_data[sender]["pending_cancel_id"]
+                                            if cancel_appointment(appointment_id):
+                                                send_message(sender, "✅ Votre rendez-vous a été annulé avec succès.")
+                                            else:
+                                                send_message(sender, "❌ Désolé, une erreur s'est produite lors de l'annulation du rendez-vous.")
+                                            # Nettoyer la session
+                                            user_data[sender].pop("pending_cancel_id", None)
+                                            user_data[sender].pop("state", None)
+                                            user_data[sender].pop("process_type", None)
+                                            return "OK", 200
+                                        elif button_id.startswith("Non"):
+                                            # L'utilisateur a annulé l'annulation
+                                            send_message(sender, "✅ L'annulation a été annulée. Votre rendez-vous est maintenu.")
+                                            # Nettoyer la session
+                                            user_data[sender].pop("pending_cancel_id", None)
+                                            user_data[sender].pop("state", None)
+                                            user_data[sender].pop("process_type", None)
+                                            return "OK", 200
+                                    return "OK", 200
+                                return "OK", 200
 
 # === ENVOI DE MESSAGES WHATSAPP ===
 
