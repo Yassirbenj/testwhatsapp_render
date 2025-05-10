@@ -282,11 +282,12 @@ def webhook():
                         state = user_data[sender]['state']
                         step_index = user_data[sender]['current_step']
                         current_process = user_data[sender]['process']
+                        next_step = user_data[sender]['next_step']
 
                         # pour debug
                         print(f"État: {state}, step index: {step_index}, longueur du processus: {len(current_process)}")
 
-                        if step_index < len(current_process):
+                        if next_step < 99:
                             current_step = current_process[step_index]
 
                             # === SAUVEGARDE de la réponse utilisateur ===
@@ -341,7 +342,7 @@ def webhook():
                             send_step_message(sender, user_data[sender]['current_step'], current_process)
                             return "OK", 200
 
-                        elif step_index >= len(current_process):
+                        elif next_step == 99:
                             # Ici c'est fini, on lance la suite spéciale selon le processus
                             if user_data[sender].get("process_type") == "creation":
                                 if state == 'initial':

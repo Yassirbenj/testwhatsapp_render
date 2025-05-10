@@ -34,11 +34,13 @@
   {
     "message": "Merci beaucoup ! 🙏 Nous allons maintenant choisir ensemble un créneau pour votre rendez-vous.",
     "expected_answers": "no_reply",
-    "next_step": 99
+    "next_step": 99,
+    "process_type": "creation"
   },
   {
     "message": "D'accord, Nous allons verifier ensemble le créneau que vous souhaitez annuler",
     "expected_answers": "no_reply",
-    "next_step": 99
+    "next_step": 99,
+    "process_type": "annulation"
   }
 ]
