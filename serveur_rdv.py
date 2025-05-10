@@ -490,8 +490,6 @@ def webhook():
                                 except Exception as e:
                                     print(f"❌ Erreur lors de l'ajout dans Google Sheets: {str(e)}")
 
-
-
         return "OK", 200
 
 # === ENVOI DE MESSAGES WHATSAPP ===
@@ -535,62 +533,108 @@ def send_step_message(to_number, step_index, process):
                 if to_number in user_data:
                     user_data[to_number]['current_expected_answers'] = expected_answers
 
-    # Si on a des réponses attendues spécifiques (pas free_text), créer des boutons
+    # Si on a des réponses attendues spécifiques (pas free_text), créer des boutons ou une liste
     if expected_answers != 'free_text' and expected_answers != 'no_reply':
-        # Créer les boutons
-        buttons = []
-        for answer in expected_answers:
-            # Pour les services, utiliser le nom du service comme titre
-            if 'dynamic_data' in step and 'services_file' in step['dynamic_data']:
-                for service in services['services']:
-                    if service['id'] == answer:
-                        title = f"{service['name']} ({service['duration']} min)"
-                        break
-            else:
-                # Pour les autres choix, utiliser le texte de la réponse
-                title = answer
-                if answer == '1':
-                    title = 'Prendre rendez-vous'
-                elif answer == '2':
-                    title = 'Modifier un rendez-vous'
-                elif answer == '3':
-                    title = 'Annuler un rendez-vous'
-                elif answer == '4':
-                    title = 'Autres'
-
-            buttons.append({
-                "type": "reply",
-                "reply": {
-                    "id": answer,
-                    "title": title
-                }
-            })
-
-        # Envoyer le message avec les boutons
         url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
         headers = {
             "Authorization": f"Bearer {ACCESS_TOKEN}",
             "Content-Type": "application/json"
         }
 
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": to_number,
-            "type": "interactive",
-            "interactive": {
-                "type": "button",
-                "body": {
-                    "text": message
-                },
-                "action": {
-                    "buttons": buttons
+        if len(expected_answers) <= 3:
+            # Utiliser des boutons pour 3 options ou moins
+            buttons = []
+            for answer in expected_answers:
+                # Pour les services, utiliser le nom du service comme titre
+                if 'dynamic_data' in step and 'services_file' in step['dynamic_data']:
+                    for service in services['services']:
+                        if service['id'] == answer:
+                            title = f"{service['name']} ({service['duration']} min)"
+                            break
+                else:
+                    # Pour les autres choix, utiliser le texte de la réponse
+                    title = answer
+                    if answer == '1':
+                        title = 'Prendre rendez-vous'
+                    elif answer == '2':
+                        title = 'Modifier un rendez-vous'
+                    elif answer == '3':
+                        title = 'Annuler un rendez-vous'
+                    elif answer == '4':
+                        title = 'Autres'
+
+                buttons.append({
+                    "type": "reply",
+                    "reply": {
+                        "id": answer,
+                        "title": title
+                    }
+                })
+
+            payload = {
+                "messaging_product": "whatsapp",
+                "to": to_number,
+                "type": "interactive",
+                "interactive": {
+                    "type": "button",
+                    "body": {
+                        "text": message
+                    },
+                    "action": {
+                        "buttons": buttons
+                    }
                 }
             }
-        }
+        else:
+            # Utiliser une liste pour plus de 3 options
+            sections = [{
+                "title": "Options disponibles",
+                "rows": []
+            }]
 
-        print("Envoi des boutons:", payload)  # Debug
+            for answer in expected_answers:
+                # Pour les services, utiliser le nom du service comme titre
+                if 'dynamic_data' in step and 'services_file' in step['dynamic_data']:
+                    for service in services['services']:
+                        if service['id'] == answer:
+                            title = f"{service['name']} ({service['duration']} min)"
+                            break
+                else:
+                    # Pour les autres choix, utiliser le texte de la réponse
+                    title = answer
+                    if answer == '1':
+                        title = 'Prendre rendez-vous'
+                    elif answer == '2':
+                        title = 'Modifier un rendez-vous'
+                    elif answer == '3':
+                        title = 'Annuler un rendez-vous'
+                    elif answer == '4':
+                        title = 'Autres'
+
+                sections[0]["rows"].append({
+                    "id": answer,
+                    "title": title
+                })
+
+            payload = {
+                "messaging_product": "whatsapp",
+                "to": to_number,
+                "type": "interactive",
+                "interactive": {
+                    "type": "list",
+                    "body": {
+                        "text": message
+                    },
+                    "action": {
+                        "button": "Choisir une option",
+                        "sections": sections
+                    }
+                }
+            }
+
+        print("Envoi du message interactif:", payload)  # Debug
         response = requests.post(url, headers=headers, data=json.dumps(payload))
-        print("Réponse envoi boutons:", response.status_code, response.json())
+        print("Réponse envoi message:", response.status_code, response.json())
     else:
         # Pour free_text ou no_reply, envoyer un message normal
         send_message(to_number, message)
@@ -748,6 +792,111 @@ def test_process_local():
             print(f"Étape actuelle: {user_data[test_user]['current_step']}")
             print(f"Données collectées: {user_data[test_user]['data']}")
             print("---")
+
+def get_future_appointments(sender):
+    """Récupère les rendez-vous futurs d'un utilisateur"""
+    if os.getenv('TEST_MODE') == 'True':
+        # En mode test, retourner des rendez-vous fictifs
+        today = datetime.now()
+        appointments = []
+        for i in range(3):
+            start_time = today + timedelta(days=i+1, hours=9)
+            end_time = start_time + timedelta(hours=2)
+            appointments.append({
+                'id': f"test_rdv_{i}",
+                'start': start_time,
+                'end': end_time,
+                'summary': f"RDV Garage avec {user_data[sender]['data'].get('Nom complet', 'Client')}",
+                'description': "Service: Révision (120 min)\nVéhicule: Renault Clio 2019"
+            })
+        return appointments
+
+    # En mode production, chercher dans Google Calendar
+    timezone = pytz.timezone(TIMEZONE)
+    now = datetime.now(timezone)
+
+    # Rechercher les événements futurs
+    events_result = calendar_service.events().list(
+        calendarId=CALENDAR_ID,
+        timeMin=now.isoformat(),
+        maxResults=10,
+        singleEvents=True,
+        orderBy='startTime'
+    ).execute()
+
+    # Filtrer les événements pour ne garder que ceux du sender
+    appointments = []
+    for event in events_result.get('items', []):
+        # Vérifier si l'événement contient le numéro WhatsApp du sender
+        if sender in event.get('description', ''):
+            start = datetime.fromisoformat(event['start']['dateTime'].replace('Z', '+00:00'))
+            end = datetime.fromisoformat(event['end']['dateTime'].replace('Z', '+00:00'))
+            appointments.append({
+                'id': event['id'],
+                'start': start,
+                'end': end,
+                'summary': event['summary'],
+                'description': event['description']
+            })
+
+    return appointments
+
+def send_appointment_buttons(sender, appointments):
+    """Envoie les boutons pour sélectionner un rendez-vous à annuler"""
+    if not appointments:
+        send_message(sender, "Vous n'avez aucun rendez-vous à venir.")
+        return False
+
+    url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {ACCESS_TOKEN}",
+        "Content-Type": "application/json"
+    }
+
+    # Créer les boutons pour chaque rendez-vous
+    buttons = []
+    for idx, appointment in enumerate(appointments, 1):
+        # Extraire les informations du rendez-vous
+        start_time = appointment['start']
+        end_time = appointment['end']
+        service_info = "Service non spécifié"
+
+        # Essayer d'extraire le service de la description
+        if 'description' in appointment:
+            for line in appointment['description'].split('\n'):
+                if line.startswith('- Service :'):
+                    service_info = line.replace('- Service :', '').strip()
+                    break
+
+        # Formater le texte du bouton
+        button_text = f"{format_date_fr(start_time)} - {service_info}"
+        buttons.append({
+            "type": "reply",
+            "reply": {
+                "id": appointment['id'],
+                "title": button_text
+            }
+        })
+
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": sender,
+        "type": "interactive",
+        "interactive": {
+            "type": "button",
+            "body": {
+                "text": "Quel rendez-vous souhaitez-vous annuler ?"
+            },
+            "action": {
+                "buttons": buttons
+            }
+        }
+    }
+
+    print("Envoi des boutons de rendez-vous:", payload)  # Debug
+    response = requests.post(url, headers=headers, data=json.dumps(payload))
+    print("Réponse envoi boutons:", response.status_code, response.json())
+    return True
 
 # === RUN APP ===
 if __name__ == '__main__':
