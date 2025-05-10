@@ -343,172 +343,222 @@ def webhook():
 
                         elif step_index >= len(current_process):
                             # Ici c'est fini, on lance la suite spéciale selon le processus
-                            if state == 'initial':
-                                print(f"Utilisateur {sender} a terminé le process principal. Passage à la suite.")
+                            if user_data[sender].get("process_type") == "creation":
+                                if state == 'initial':
+                                    print(f"Utilisateur {sender} a terminé le process principal. Passage à la suite.")
 
-                                if current_process == process_rdv:
                                     # Proposer une date pour prise de rendez-vous
                                     send_message(sender, "Merci pour vos réponses 🙏. Maintenant, choisissons ensemble un créneau pour votre rendez-vous.")
                                     user_data[sender]['state'] = 'ask_start_date'
 
-                            if state == 'ask_start_date':
-                                # La date peut venir soit des boutons, soit d'une saisie manuelle
-                                try:
-                                    # Si c'est une réponse de bouton, le format est dd/MM/yyyy
-                                    if text in [datetime.now().strftime("%d/%m/%Y"),
-                                              (datetime.now() + timedelta(days=1)).strftime("%d/%m/%Y"),
-                                              (datetime.now() + timedelta(days=2)).strftime("%d/%m/%Y")]:
-                                        # Convertir le format dd/MM/yyyy en YYYY-MM-DD
-                                        start_date = datetime.strptime(text, "%d/%m/%Y")
-                                    else:
-                                        # Sinon, essayer de parser la date saisie manuellement
-                                        start_date = datetime.strptime(text, "%Y-%m-%d")
-                                except Exception:
-                                    send_message(sender, "Merci d'indiquer une date future au format JJ/MM/AAA (ex: 10/06/2025)")
-                                    send_date_buttons(sender)  # Renvoyer les boutons
-                                    return "OK", 200
+                                if state == 'ask_start_date':
+                                    # La date peut venir soit des boutons, soit d'une saisie manuelle
+                                    try:
+                                        # Si c'est une réponse de bouton, le format est dd/MM/yyyy
+                                        if text in [datetime.now().strftime("%d/%m/%Y"),
+                                                (datetime.now() + timedelta(days=1)).strftime("%d/%m/%Y"),
+                                                (datetime.now() + timedelta(days=2)).strftime("%d/%m/%Y")]:
+                                            # Convertir le format dd/MM/yyyy en YYYY-MM-DD
+                                            start_date = datetime.strptime(text, "%d/%m/%Y")
+                                        else:
+                                            # Sinon, essayer de parser la date saisie manuellement
+                                            start_date = datetime.strptime(text, "%Y-%m-%d")
+                                    except Exception:
+                                        send_message(sender, "Merci d'indiquer une date future au format JJ/MM/AAA (ex: 10/06/2025)")
+                                        send_date_buttons(sender)  # Renvoyer les boutons
+                                        return "OK", 200
 
-                                service_id = user_data[sender]['data'].get('Service souhaité')
-                                service_duration = None
-                                service_name = None
+                                    service_id = user_data[sender]['data'].get('Service souhaité')
+                                    service_duration = None
+                                    service_name = None
 
-                                # Charger les informations du service
-                                with open('services.json', 'r') as f:
-                                    services = json.load(f)
-                                    for service in services['services']:
-                                        if service['id'] == service_id:
-                                            service_duration = int(service['duration'])
-                                            service_name = service['name']
-                                            break
+                                    # Charger les informations du service
+                                    with open('services.json', 'r') as f:
+                                        services = json.load(f)
+                                        for service in services['services']:
+                                            if service['id'] == service_id:
+                                                service_duration = int(service['duration'])
+                                                service_name = service['name']
+                                                break
 
-                                # Vérifier que nous avons bien trouvé le service
-                                if service_duration is None or service_name is None:
-                                    print(f"Service non trouvé pour l'ID: {service_id}")
-                                    send_message(sender, "Désolé, une erreur est survenue. Veuillez réessayer.")
-                                    return "OK", 200
+                                    # Vérifier que nous avons bien trouvé le service
+                                    if service_duration is None or service_name is None:
+                                        print(f"Service non trouvé pour l'ID: {service_id}")
+                                        send_message(sender, "Désolé, une erreur est survenue. Veuillez réessayer.")
+                                        return "OK", 200
 
-                                slots = find_available_slots(start_date, service_duration)
-                                if not slots:
-                                    send_message(sender, "Désolé, aucun créneau n'est disponible à partir de cette date. Merci d'en proposer une autre.")
-                                    send_date_buttons(sender)  # Renvoyer les boutons
-                                    return "OK", 200
+                                    slots = find_available_slots(start_date, service_duration)
+                                    if not slots:
+                                        send_message(sender, "Désolé, aucun créneau n'est disponible à partir de cette date. Merci d'en proposer une autre.")
+                                        send_date_buttons(sender)  # Renvoyer les boutons
+                                        return "OK", 200
 
-                                # Proposer les créneaux à l'utilisateur avec une liste
-                                url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
-                                headers = {
-                                    "Authorization": f"Bearer {ACCESS_TOKEN}",
-                                    "Content-Type": "application/json"
-                                }
+                                    # Proposer les créneaux à l'utilisateur avec une liste
+                                    url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
+                                    headers = {
+                                        "Authorization": f"Bearer {ACCESS_TOKEN}",
+                                        "Content-Type": "application/json"
+                                    }
 
-                                # Créer les sections pour la liste
-                                sections = [{
-                                    "title": "Créneaux disponibles",
-                                    "rows": []
-                                }]
+                                    # Créer les sections pour la liste
+                                    sections = [{
+                                        "title": "Créneaux disponibles",
+                                        "rows": []
+                                    }]
 
-                                # Ajouter chaque créneau à la liste
-                                for idx, (slot_start, slot_end) in enumerate(slots, 1):
-                                    # Formater les horaires
-                                    start_time = format_date_fr(slot_start)
-                                    end_time = format_date_fr(slot_end)
+                                    # Ajouter chaque créneau à la liste
+                                    for idx, (slot_start, slot_end) in enumerate(slots, 1):
+                                        # Formater les horaires
+                                        start_time = format_date_fr(slot_start)
+                                        end_time = format_date_fr(slot_end)
 
-                                    # Calculer la durée
-                                    duration = (slot_end - slot_start).total_seconds() / 60
+                                        # Calculer la durée
+                                        duration = (slot_end - slot_start).total_seconds() / 60
 
-                                    sections[0]["rows"].append({
-                                        "id": str(idx),
-                                        "title": f"C Créneau {idx}",
-                                        "description": f"{start_time} - {end_time} ({int(duration)} min)"
-                                    })
+                                        sections[0]["rows"].append({
+                                            "id": str(idx),
+                                            "title": f"C Créneau {idx}",
+                                            "description": f"{start_time} - {end_time} ({int(duration)} min)"
+                                        })
 
-                                payload = {
-                                    "messaging_product": "whatsapp",
-                                    "to": sender,
-                                    "type": "interactive",
-                                    "interactive": {
-                                        "type": "list",
-                                        "body": {
-                                            "text": "Voici les créneaux disponibles :"
-                                        },
-                                        "action": {
-                                            "button": "Choisir un créneau",
-                                            "sections": sections
+                                    payload = {
+                                        "messaging_product": "whatsapp",
+                                        "to": sender,
+                                        "type": "interactive",
+                                        "interactive": {
+                                            "type": "list",
+                                            "body": {
+                                                "text": "Voici les créneaux disponibles :"
+                                            },
+                                            "action": {
+                                                "button": "Choisir un créneau",
+                                                "sections": sections
+                                            }
                                         }
                                     }
-                                }
 
-                                print("Envoi de la liste des créneaux:", payload)  # Debug
-                                response = requests.post(url, headers=headers, data=json.dumps(payload))
-                                print("Réponse envoi message:", response.status_code, response.json())
+                                    print("Envoi de la liste des créneaux:", payload)  # Debug
+                                    response = requests.post(url, headers=headers, data=json.dumps(payload))
+                                    print("Réponse envoi message:", response.status_code, response.json())
 
-                                # Stocker les créneaux proposés pour ce user
-                                user_data[sender]['available_slots'] = slots
-                                user_data[sender]['state'] = 'choose_slot'
+                                    # Stocker les créneaux proposés pour ce user
+                                    user_data[sender]['available_slots'] = slots
+                                    user_data[sender]['state'] = 'choose_slot'
+                                    return "OK", 200
+
+                                if state == 'choose_slot':
+                                    slots = user_data[sender].get('available_slots', [])
+                                    try:
+                                        idx = int(text.strip()) - 1
+                                        slot_start, slot_end = slots[idx]
+                                    except Exception:
+                                        send_message(sender, "Merci de répondre par le numéro du créneau choisi.")
+                                        return "OK", 200
+
+                                    # Récupérer les informations du service
+                                    service_id = user_data[sender]['data'].get('Service souhaité')
+                                    with open('services.json', 'r') as f:
+                                        services = json.load(f)
+                                        for service in services['services']:
+                                            if service['id'] == service_id:
+                                                # Stocker les informations du service dans user_data
+                                                user_data[sender]['service_info'] = {
+                                                    'name': service['name'],
+                                                    'duration': int(service['duration'])
+                                                }
+                                                break
+
+                                    # Vérifier que nous avons bien trouvé le service
+                                    if user_data[sender]['service_info'] is None:
+                                        print(f"Service non trouvé pour l'ID: {service_id}")
+                                        send_message(sender, "Désolé, une erreur est survenue. Veuillez réessayer.")
+                                        return "OK", 200
+
+                                    # Créer le rendez-vous
+                                    service_info = user_data[sender].get('service_info', {})
+                                    link = create_appointment(
+                                        sender,
+                                        slot_start,
+                                        slot_end,
+                                        service_info.get('name'),
+                                        service_info.get('duration')
+                                    )
+                                    send_message(sender, f"Votre rendez-vous est confirmé ! 📅\nLien Google Calendar : {link}")
+                                    user_data[sender]['state'] = 'completed'
+
+                                    # Stocker les informations du rendez-vous dans user_data
+                                    user_data[sender]['data'].update({
+                                        'Date RDV': format_date_fr(slot_start),
+                                        'Heure fin RDV': format_date_fr(slot_end),
+                                        'Service': service_info.get('name'),
+                                        'Durée service': f"{service_info.get('duration')} min"
+                                    })
+
+                                    # Construction de la ligne à enregistrer
+                                    record = [sender]  # Numéro de téléphone WhatsApp
+                                    for key, value in user_data[sender]['data'].items():
+                                        record.append(value)
+
+                                    print("Données à enregistrer dans Google Sheet :", record)
+                                    # Ajouter une ligne dans Google Sheets
+                                    try:
+                                        print(f"Tentative d'ajout dans Google Sheets: {record}")
+                                        sheet.append_row(record)
+                                        print(f"✅ Lead ajouté dans Google Sheet : {record}")
+                                    except Exception as e:
+                                        print(f"❌ Erreur lors de l'ajout dans Google Sheets: {str(e)}")
+
                                 return "OK", 200
 
-                            if state == 'choose_slot':
-                                slots = user_data[sender].get('available_slots', [])
-                                try:
-                                    idx = int(text.strip()) - 1
-                                    slot_start, slot_end = slots[idx]
-                                except Exception:
-                                    send_message(sender, "Merci de répondre par le numéro du créneau choisi.")
+                            # sous process annulation
+                            elif user_data[sender].get("process_type") == "annulation":
+                                if user_data[sender].get("state") == "initial":
+                                    appointments = get_future_appointments(sender)
+                                    send_appointment_buttons(sender, appointments)
+                                    user_data[sender]['state'] = 'ask_appointment_to_cancel'
                                     return "OK", 200
-
-                                # Récupérer les informations du service
-                                service_id = user_data[sender]['data'].get('Service souhaité')
-                                with open('services.json', 'r') as f:
-                                    services = json.load(f)
-                                    for service in services['services']:
-                                        if service['id'] == service_id:
-                                            # Stocker les informations du service dans user_data
-                                            user_data[sender]['service_info'] = {
-                                                'name': service['name'],
-                                                'duration': int(service['duration'])
-                                            }
-                                            break
-
-                                # Vérifier que nous avons bien trouvé le service
-                                if user_data[sender]['service_info'] is None:
-                                    print(f"Service non trouvé pour l'ID: {service_id}")
-                                    send_message(sender, "Désolé, une erreur est survenue. Veuillez réessayer.")
-                                    return "OK", 200
-
-                                # Créer le rendez-vous
-                                service_info = user_data[sender].get('service_info', {})
-                                link = create_appointment(
-                                    sender,
-                                    slot_start,
-                                    slot_end,
-                                    service_info.get('name'),
-                                    service_info.get('duration')
-                                )
-                                send_message(sender, f"Votre rendez-vous est confirmé ! 📅\nLien Google Calendar : {link}")
-                                user_data[sender]['state'] = 'completed'
-
-                                # Stocker les informations du rendez-vous dans user_data
-                                user_data[sender]['data'].update({
-                                    'Date RDV': format_date_fr(slot_start),
-                                    'Heure fin RDV': format_date_fr(slot_end),
-                                    'Service': service_info.get('name'),
-                                    'Durée service': f"{service_info.get('duration')} min"
-                                })
-
-                                # Construction de la ligne à enregistrer
-                                record = [sender]  # Numéro de téléphone WhatsApp
-                                for key, value in user_data[sender]['data'].items():
-                                    record.append(value)
-
-                                print("Données à enregistrer dans Google Sheet :", record)
-                                # Ajouter une ligne dans Google Sheets
-                                try:
-                                    print(f"Tentative d'ajout dans Google Sheets: {record}")
-                                    sheet.append_row(record)
-                                    print(f"✅ Lead ajouté dans Google Sheet : {record}")
-                                except Exception as e:
-                                    print(f"❌ Erreur lors de l'ajout dans Google Sheets: {str(e)}")
-
-        return "OK", 200
+                                elif user_data[sender].get("state") == "ask_appointment_to_cancel":
+                                    # L'utilisateur a déjà vu la liste des rendez-vous
+                                    if message.get("interactive"):
+                                        interactive_type = message["interactive"].get("type")
+                                        if interactive_type == "list_reply":
+                                            # L'utilisateur a sélectionné un rendez-vous
+                                            appointment_id = message["interactive"]["list_reply"]["id"]
+                                            # Envoyer les boutons de confirmation
+                                            send_confirmation_buttons(sender, appointment_id)
+                                            # Sauvegarder l'ID du rendez-vous dans la session
+                                            user_data[sender]["pending_cancel_id"] = appointment_id
+                                            user_data[sender].get("state") == "pending_cancel_confirmation"
+                                            return "OK", 200
+                                        elif interactive_type == "button_reply":
+                                            button_id = message["interactive"]["button_reply"]["id"]
+                                            send_confirmation_buttons(sender, appointment_id)
+                                            # Sauvegarder l'ID du rendez-vous dans la session
+                                            user_data[sender]["pending_cancel_id"] = appointment_id
+                                            user_data[sender]["state"] = "pending_cancel_confirmation"
+                                            return "OK", 200
+                                elif user_data[sender].get["state"] == "pending_cancel_confirmation":
+                                    button_id = message["interactive"]["button_reply"]["id"]
+                                    if button_id.startswith("Oui"):
+                                        # L'utilisateur a confirmé l'annulation
+                                        appointment_id = user_data[sender]["pending_cancel_id"]
+                                        if cancel_appointment(appointment_id):
+                                            send_message(sender, "✅ Votre rendez-vous a été annulé avec succès.")
+                                        else:
+                                            send_message(sender, "❌ Désolé, une erreur s'est produite lors de l'annulation du rendez-vous.")
+                                        # Nettoyer la session
+                                        user_data[sender].pop("pending_cancel_id", None)
+                                        user_data[sender].pop("state", None)
+                                        user_data[sender].pop("process_type", None)
+                                        return "OK", 200
+                                    elif button_id.startswith("Non"):
+                                        # L'utilisateur a annulé l'annulation
+                                        send_message(sender, "✅ L'annulation a été annulée. Votre rendez-vous est maintenu.")
+                                        # Nettoyer la session
+                                        user_data[sender].pop("pending_cancel_id", None)
+                                        user_data[sender].pop("state", None)
+                                        user_data[sender].pop("process_type", None)
+                                        return "OK", 200
 
 # === ENVOI DE MESSAGES WHATSAPP ===
 
