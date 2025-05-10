@@ -282,7 +282,7 @@ def webhook():
                         state = user_data[sender]['state']
                         step_index = user_data[sender]['current_step']
                         current_process = user_data[sender]['process']
-                        next_step = user_data[sender]['next_step']
+                        next_step = current_process[step_index]['next_step']
 
                         # pour debug
                         print(f"État: {state}, step index: {step_index}, longueur du processus: {len(current_process)}")
