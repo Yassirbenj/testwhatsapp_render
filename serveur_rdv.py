@@ -305,7 +305,7 @@ def webhook():
                                 # ⚡ Directement lancer la suite
                                 if user_data[sender]['current_step'] >= len(current_process):
                                     print(f"Utilisateur {sender} a terminé le process principal (no_reply). Passage à la prise de RDV.")
-                                    send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ? (ex: 2024-06-01)")
+                                    send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ?")
                                     send_date_buttons(sender)
                                     user_data[sender]['state'] = 'ask_start_date'
                                     return "OK", 200
@@ -867,7 +867,7 @@ def get_future_appointments(sender):
     return appointments
 
 def send_appointment_buttons(sender, appointments):
-    """Envoie les boutons pour sélectionner un rendez-vous à annuler"""
+    """Envoie la liste des rendez-vous à annuler"""
     if not appointments:
         send_message(sender, "Vous n'avez aucun rendez-vous à venir.")
         return False
@@ -878,30 +878,65 @@ def send_appointment_buttons(sender, appointments):
         "Content-Type": "application/json"
     }
 
-    # Créer les boutons pour chaque rendez-vous
-    buttons = []
+    # Créer les sections pour la liste
+    sections = [{
+        "title": "Vos rendez-vous",
+        "rows": []
+    }]
+
+    # Ajouter chaque rendez-vous à la liste
     for idx, appointment in enumerate(appointments, 1):
         # Extraire les informations du rendez-vous
         start_time = appointment['start']
         end_time = appointment['end']
-        service_info = "Service non spécifié"
 
-        # Essayer d'extraire le service de la description
+        # Extraire le service de la description
+        service_info = "Service non spécifié"
+        vehicle_info = ""
         if 'description' in appointment:
             for line in appointment['description'].split('\n'):
                 if line.startswith('- Service :'):
                     service_info = line.replace('- Service :', '').strip()
-                    break
+                elif line.startswith('- Véhicule :'):
+                    vehicle_info = line.replace('- Véhicule :', '').strip()
 
-        # Formater le texte du bouton
-        button_text = f"{format_date_fr(start_time)} - {service_info}"
-        buttons.append({
-            "type": "reply",
-            "reply": {
-                "id": appointment['id'],
-                "title": button_text
-            }
+        # Calculer la durée
+        duration = (end_time - start_time).total_seconds() / 60
+
+        sections[0]["rows"].append({
+            "id": appointment['id'],
+            "title": f"RDV {idx}",
+            "description": f"{format_date_fr(start_time)} - {service_info} - {vehicle_info}"
         })
+
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": sender,
+        "type": "interactive",
+        "interactive": {
+            "type": "list",
+            "body": {
+                "text": "Quel rendez-vous souhaitez-vous annuler ?"
+            },
+            "action": {
+                "button": "Choisir un rendez-vous",
+                "sections": sections
+            }
+        }
+    }
+
+    print("Envoi de la liste des rendez-vous:", payload)  # Debug
+    response = requests.post(url, headers=headers, data=json.dumps(payload))
+    print("Réponse envoi message:", response.status_code, response.json())
+    return True
+
+def send_confirmation_buttons(sender, appointment_id):
+    """Envoie les boutons de confirmation pour l'annulation"""
+    url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {ACCESS_TOKEN}",
+        "Content-Type": "application/json"
+    }
 
     payload = {
         "messaging_product": "whatsapp",
@@ -910,56 +945,262 @@ def send_appointment_buttons(sender, appointments):
         "interactive": {
             "type": "button",
             "body": {
-                "text": "Quel rendez-vous souhaitez-vous annuler ?"
+                "text": "Êtes-vous sûr de vouloir annuler ce rendez-vous ?"
             },
             "action": {
-                "buttons": buttons
+                "buttons": [
+                    {
+                        "type": "reply",
+                        "reply": {
+                            "id": f"confirm_cancel_{appointment_id}",
+                            "title": "Oui, annuler"
+                        }
+                    },
+                    {
+                        "type": "reply",
+                        "reply": {
+                            "id": "cancel_cancel",
+                            "title": "Non, garder"
+                        }
+                    }
+                ]
             }
         }
     }
 
-    print("Envoi des boutons de rendez-vous:", payload)  # Debug
     response = requests.post(url, headers=headers, data=json.dumps(payload))
-    print("Réponse envoi boutons:", response.status_code, response.json())
-    return True
+    print("Réponse envoi confirmation:", response.status_code, response.json())
+
+def get_calendar_service():
+    """Initialise et retourne le service Google Calendar"""
+    try:
+        credentials = service_account.Credentials.from_service_account_file(
+            'credentials.json',
+            scopes=['https://www.googleapis.com/auth/calendar']
+        )
+        service = build('calendar', 'v3', credentials=credentials)
+        return service
+    except Exception as e:
+        print(f"Erreur lors de l'initialisation du service Calendar: {e}")
+        return None
+
+def cancel_appointment(appointment_id):
+    """Annule un rendez-vous dans Google Calendar"""
+    try:
+        service = get_calendar_service()
+        if service:
+            service.events().delete(
+                calendarId=CALENDAR_ID,
+                eventId=appointment_id
+            ).execute()
+            return True
+        return False
+    except Exception as e:
+        print(f"Erreur lors de l'annulation du rendez-vous: {e}")
+        return False
+
+def test_cancel_appointment():
+    """Test du processus d'annulation de rendez-vous"""
+    # Simuler un numéro de téléphone
+    test_phone = "33600000000"
+
+    # Simuler un rendez-vous existant avec des objets datetime
+    from datetime import datetime, timedelta
+
+    start_time = datetime(2024, 3, 20, 10, 0)  # 20 mars 2024 à 10h00
+    end_time = start_time + timedelta(hours=1)  # 1 heure plus tard
+
+    test_appointment = {
+        'id': 'test_appointment_123',
+        'start': start_time,
+        'end': end_time,
+        'description': '- Service : Révision\n- Véhicule : Renault Clio 2019'
+    }
+
+    # Simuler la liste des rendez-vous
+    test_appointments = [test_appointment]
+
+    print("\n=== Test du processus d'annulation ===")
+
+    # 1. Simuler l'envoi de la liste des rendez-vous
+    print("\n1. Envoi de la liste des rendez-vous")
+    send_appointment_buttons(test_phone, test_appointments)
+
+    # 2. Simuler la sélection d'un rendez-vous
+    print("\n2. Sélection d'un rendez-vous")
+    list_reply = {
+        "messaging_product": "whatsapp",
+        "status": "sent",
+        "to": test_phone,
+        "type": "interactive",
+        "interactive": {
+            "type": "list_reply",
+            "list_reply": {
+                "id": test_appointment['id'],
+                "title": "RDV 1"
+            }
+        }
+    }
+
+    # Simuler la réponse du webhook pour la sélection
+    webhook_response = {
+        "object": "whatsapp_business_account",
+        "entry": [{
+            "id": "123456789",
+            "changes": [{
+                "value": {
+                    "messaging_product": "whatsapp_business_account",
+                    "metadata": {
+                        "display_phone_number": "33600000000",
+                        "phone_number_id": "123456789"
+                    },
+                    "contacts": [{
+                        "profile": {
+                            "name": "Test User"
+                        },
+                        "wa_id": test_phone
+                    }],
+                    "messages": [{
+                        "from": test_phone,
+                        "id": "wamid.123",
+                        "timestamp": "1234567890",
+                        "type": "interactive",
+                        "interactive": list_reply["interactive"]
+                    }]
+                }
+            }]
+        }]
+    }
+
+    # 3. Simuler la confirmation d'annulation
+    print("\n3. Confirmation d'annulation")
+    button_reply = {
+        "messaging_product": "whatsapp",
+        "status": "sent",
+        "to": test_phone,
+        "type": "interactive",
+        "interactive": {
+            "type": "button_reply",
+            "button_reply": {
+                "id": f"confirm_cancel_{test_appointment['id']}",
+                "title": "Oui, annuler"
+            }
+        }
+    }
+
+    # Simuler la réponse du webhook pour la confirmation
+    webhook_response_confirm = {
+        "object": "whatsapp_business_account",
+        "entry": [{
+            "id": "123456789",
+            "changes": [{
+                "value": {
+                    "messaging_product": "whatsapp_business_account",
+                    "metadata": {
+                        "display_phone_number": "33600000000",
+                        "phone_number_id": "123456789"
+                    },
+                    "contacts": [{
+                        "profile": {
+                            "name": "Test User"
+                        },
+                        "wa_id": test_phone
+                    }],
+                    "messages": [{
+                        "from": test_phone,
+                        "id": "wamid.123",
+                        "timestamp": "1234567890",
+                        "type": "interactive",
+                        "interactive": button_reply["interactive"]
+                    }]
+                }
+            }]
+        }]
+    }
+
+    # Exécuter les tests
+    print("\nExécution des tests...")
+
+    # Test de la sélection du rendez-vous
+    print("\nTest de la sélection du rendez-vous:")
+    with app.test_request_context(json=webhook_response):
+        webhook()
+
+    # Test de la confirmation d'annulation
+    print("\nTest de la confirmation d'annulation:")
+    with app.test_request_context(json=webhook_response_confirm):
+        webhook()
+
+    print("\n=== Fin du test ===")
+
+def test_conversation():
+    """Test du processus de création de rendez-vous"""
+    # Simuler un numéro de téléphone
+    test_phone = "33600000000"
+
+    # Simuler les messages de l'utilisateur
+    test_messages = [
+        "Je veux prendre un rendez-vous",
+        "Révision",
+        "Renault Clio 2019",
+        "Ok",
+        "20 juin 2025",
+        "10:00"
+    ]
+
+    print("\n=== Test du processus de création ===")
+
+    # Simuler chaque message
+    for message in test_messages:
+        print(f"\nMessage: {message}")
+
+        # Créer la structure du message
+        webhook_data = {
+            "object": "whatsapp_business_account",
+            "entry": [{
+                "id": "123456789",
+                "changes": [{
+                    "value": {
+                        "messaging_product": "whatsapp_business_account",
+                        "metadata": {
+                            "display_phone_number": "33600000000",
+                            "phone_number_id": "123456789"
+                        },
+                        "contacts": [{
+                            "profile": {
+                                "name": "Test User"
+                            },
+                            "wa_id": test_phone
+                        }],
+                        "messages": [{
+                            "from": test_phone,
+                            "id": "wamid.123",
+                            "timestamp": "1234567890",
+                            "type": "text",
+                            "text": {
+                                "body": message
+                            }
+                        }]
+                    }
+                }]
+            }]
+        }
+
+        # Envoyer le message au webhook
+        webhook(webhook_data)
+
+    print("\n=== Fin du test ===")
 
 # === RUN APP ===
 if __name__ == '__main__':
-    # Mode test
-    if os.getenv('TEST_MODE') == 'True':
-        # Désactiver les dépendances externes pour le test
-        import types
+    import sys
 
-        # Créer des mock objects pour les services
-        class MockSheet:
-            def append_row(self, row):
-                pass  # Ne rien afficher
-
-        class MockService:
-            def __init__(self, name):
-                self.name = name
-
-            def __getattr__(self, name):
-                return lambda *args, **kwargs: None  # Ne rien afficher
-
-        # Remplacer les services réels par des mocks
-        sheet = MockSheet()
-        calendar_service = MockService("Calendar")
-        drive_service = MockService("Drive")
-
-        # Modifier la fonction send_message pour le test
-        def send_message(to_number, message):
-            print(f"\n[Message envoyé]: {message}")
-
-        # Modifier la fonction send_date_buttons pour le test
-        def send_date_buttons(sender):
-            print(f"\n[Options de date disponibles]")
-            today = datetime.now()
-            for i in range(3):
-                date = today + timedelta(days=i)
-                print(f"- {date.strftime('%d/%m/%Y')}")
-
-        # Lancer le test
-        test_process_local()
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "--test-cancel":
+            print("Lancement du test d'annulation...")
+            test_cancel_appointment()
+        elif sys.argv[1] == "--test-create":
+            print("Lancement du test de création...")
+            test_conversation()
     else:
-        app.run(port=5000)
+        app.run(host='0.0.0.0', port=5000)
