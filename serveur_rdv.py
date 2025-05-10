@@ -557,7 +557,10 @@ def send_step_message(to_number, step_index, process):
                 if 'dynamic_data' in step and 'services_file' in step['dynamic_data']:
                     for service in services['services']:
                         if service['id'] == answer:
-                            title = f"{service['name']} ({service['duration']} min)"
+                            # Raccourcir le titre pour les boutons
+                            title = f"{service['name']} ({service['duration']}min)"
+                            if len(title) > 20:
+                                title = f"{service['name'][:15]}... ({service['duration']}min)"
                             break
                 else:
                     # Pour les autres choix, utiliser le texte de la réponse
@@ -565,9 +568,9 @@ def send_step_message(to_number, step_index, process):
                     if answer == '1':
                         title = 'Prendre rendez-vous'
                     elif answer == '2':
-                        title = 'Modifier un rendez-vous'
+                        title = 'Modifier un RDV'
                     elif answer == '3':
-                        title = 'Annuler un rendez-vous'
+                        title = 'Annuler un RDV'
                     elif answer == '4':
                         title = 'Autres'
 
@@ -596,7 +599,7 @@ def send_step_message(to_number, step_index, process):
         else:
             # Utiliser une liste pour plus de 3 options
             sections = [{
-                "title": "Options disponibles",
+                "title": "Services disponibles",
                 "rows": []
             }]
 
@@ -605,7 +608,9 @@ def send_step_message(to_number, step_index, process):
                 if 'dynamic_data' in step and 'services_file' in step['dynamic_data']:
                     for service in services['services']:
                         if service['id'] == answer:
+                            # Pour les listes, on peut utiliser des titres plus longs
                             title = f"{service['name']} ({service['duration']} min)"
+                            description = f"Durée estimée: {service['duration']} minutes"
                             break
                 else:
                     # Pour les autres choix, utiliser le texte de la réponse
@@ -618,10 +623,12 @@ def send_step_message(to_number, step_index, process):
                         title = 'Annuler un rendez-vous'
                     elif answer == '4':
                         title = 'Autres'
+                    description = ""
 
                 sections[0]["rows"].append({
                     "id": answer,
-                    "title": title
+                    "title": title,
+                    "description": description
                 })
 
             payload = {
@@ -634,7 +641,7 @@ def send_step_message(to_number, step_index, process):
                         "text": message
                     },
                     "action": {
-                        "button": "Choisir une option",
+                        "button": "Choisir un service",
                         "sections": sections
                     }
                 }
