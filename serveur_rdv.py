@@ -346,16 +346,17 @@ def webhook():
                             if state == 'ask_start_date':
                                 # La date peut venir soit des boutons, soit d'une saisie manuelle
                                 try:
-                                    # Si c'est une réponse de bouton, le format est déjà YYYY-MM-DD
-                                    if text in [datetime.now().strftime("%Y-%m-%d"),
-                                              (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d"),
-                                              (datetime.now() + timedelta(days=2)).strftime("%Y-%m-%d")]:
-                                        start_date = datetime.strptime(text, "%Y-%m-%d")
+                                    # Si c'est une réponse de bouton, le format est dd/MM/yyyy
+                                    if text in [datetime.now().strftime("%d/%m/%Y"),
+                                              (datetime.now() + timedelta(days=1)).strftime("%d/%m/%Y"),
+                                              (datetime.now() + timedelta(days=2)).strftime("%d/%m/%Y")]:
+                                        # Convertir le format dd/MM/yyyy en YYYY-MM-DD
+                                        start_date = datetime.strptime(text, "%d/%m/%Y")
                                     else:
                                         # Sinon, essayer de parser la date saisie manuellement
                                         start_date = datetime.strptime(text, "%Y-%m-%d")
                                 except Exception:
-                                    send_message(sender, "Merci d'indiquer une date au format AAAA-MM-JJ (ex: 2024-06-01)")
+                                    send_message(sender, "Merci d'indiquer une date future au format JJ/MM/AAA (ex: 10/06/2025)")
                                     send_date_buttons(sender)  # Renvoyer les boutons
                                     return "OK", 200
 
