@@ -385,12 +385,43 @@ def webhook():
                                     send_date_buttons(sender)  # Renvoyer les boutons
                                     return "OK", 200
 
-                                # Proposer les créneaux à l'utilisateur
-                                msg = "Voici les créneaux disponibles :\n"
+                                # Proposer les créneaux à l'utilisateur avec des boutons
+                                url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
+                                headers = {
+                                    "Authorization": f"Bearer {ACCESS_TOKEN}",
+                                    "Content-Type": "application/json"
+                                }
+
+                                # Créer les boutons pour chaque créneau
+                                buttons = []
                                 for idx, (slot_start, slot_end) in enumerate(slots, 1):
-                                    msg += f"{idx}. {format_date_fr(slot_start)} - {format_date_fr(slot_end)}\n"
-                                msg += "\nMerci de répondre par le numéro du créneau choisi."
-                                send_message(sender, msg)
+                                    formatted_time = f"{format_date_fr(slot_start)} - {format_date_fr(slot_end)}"
+                                    buttons.append({
+                                        "type": "reply",
+                                        "reply": {
+                                            "id": str(idx),
+                                            "title": formatted_time
+                                        }
+                                    })
+
+                                payload = {
+                                    "messaging_product": "whatsapp",
+                                    "to": sender,
+                                    "type": "interactive",
+                                    "interactive": {
+                                        "type": "button",
+                                        "body": {
+                                            "text": "Voici les créneaux disponibles :"
+                                        },
+                                        "action": {
+                                            "buttons": buttons
+                                        }
+                                    }
+                                }
+
+                                print("Envoi des boutons de créneaux:", payload)  # Debug
+                                response = requests.post(url, headers=headers, data=json.dumps(payload))
+                                print("Réponse envoi boutons:", response.status_code, response.json())
 
                                 # Stocker les créneaux proposés pour ce user
                                 user_data[sender]['available_slots'] = slots
@@ -504,7 +535,66 @@ def send_step_message(to_number, step_index, process):
                 if to_number in user_data:
                     user_data[to_number]['current_expected_answers'] = expected_answers
 
-    send_message(to_number, message)
+    # Si on a des réponses attendues spécifiques (pas free_text), créer des boutons
+    if expected_answers != 'free_text' and expected_answers != 'no_reply':
+        # Créer les boutons
+        buttons = []
+        for answer in expected_answers:
+            # Pour les services, utiliser le nom du service comme titre
+            if 'dynamic_data' in step and 'services_file' in step['dynamic_data']:
+                for service in services['services']:
+                    if service['id'] == answer:
+                        title = f"{service['name']} ({service['duration']} min)"
+                        break
+            else:
+                # Pour les autres choix, utiliser le texte de la réponse
+                title = answer
+                if answer == '1':
+                    title = 'Prendre rendez-vous'
+                elif answer == '2':
+                    title = 'Modifier un rendez-vous'
+                elif answer == '3':
+                    title = 'Annuler un rendez-vous'
+                elif answer == '4':
+                    title = 'Autres'
+
+            buttons.append({
+                "type": "reply",
+                "reply": {
+                    "id": answer,
+                    "title": title
+                }
+            })
+
+        # Envoyer le message avec les boutons
+        url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
+        headers = {
+            "Authorization": f"Bearer {ACCESS_TOKEN}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": to_number,
+            "type": "interactive",
+            "interactive": {
+                "type": "button",
+                "body": {
+                    "text": message
+                },
+                "action": {
+                    "buttons": buttons
+                }
+            }
+        }
+
+        print("Envoi des boutons:", payload)  # Debug
+        response = requests.post(url, headers=headers, data=json.dumps(payload))
+        print("Réponse envoi boutons:", response.status_code, response.json())
+    else:
+        # Pour free_text ou no_reply, envoyer un message normal
+        send_message(to_number, message)
+
     return expected_answers
 
 def send_message(to_number, message):
