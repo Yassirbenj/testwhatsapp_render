@@ -234,10 +234,18 @@ def webhook():
                         message = messages[0]
                         sender = message['from']
 
-                        # Gérer les réponses de boutons
+                        # Gérer les réponses interactives
                         if 'interactive' in message:
-                            # Si c'est une réponse de bouton, récupérer l'ID du bouton
-                            text = message['interactive']['button_reply']['id']
+                            interactive = message['interactive']
+                            # Gérer les réponses de boutons
+                            if 'button_reply' in interactive:
+                                text = interactive['button_reply']['id']
+                            # Gérer les réponses de liste
+                            elif 'list_reply' in interactive:
+                                text = interactive['list_reply']['id']
+                            else:
+                                send_message(sender, "Merci de répondre avec un message texte")
+                                return "OK", 200
                         elif 'text' in message:
                             text = message['text'].get('body')
                         else:
