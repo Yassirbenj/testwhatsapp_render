@@ -880,6 +880,7 @@ def cancel_appointment(appointment_id):
     print(f"- ID du rendez-vous: {appointment_id}")
     try:
         service = get_calendar_service()
+        print(f"[DEBUG] Service Calendar: {service}")
         if service:
             service.events().delete(
                 calendarId=CALENDAR_ID,
@@ -1292,6 +1293,7 @@ def handle_cancellation_process(sender, state, text, message):
             if button_id.startswith("confirm_cancel"):
                 # L'utilisateur a confirmé l'annulation
                 appointment_id = user_data[sender]["pending_cancel_id"]
+                print(f"[DEBUG] Appointment id is {appointment_id}")
                 if cancel_appointment(appointment_id):
                     send_message(sender, "✅ Votre rendez-vous a été annulé avec succès.")
                 else:
