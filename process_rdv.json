@@ -33,7 +33,7 @@
   },
   {
     "message": "Merci beaucoup ! 🙏 Nous allons maintenant choisir ensemble un créneau pour votre rendez-vous. tapez ok pour continuer",
-    "expected_answers": ["ok","Ok","OK"],
+    "expected_answers": ["Ok"],
     "next_step": 99,
     "process_type": "creation"
   },
