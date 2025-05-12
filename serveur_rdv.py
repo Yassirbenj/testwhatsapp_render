@@ -808,7 +808,7 @@ def send_appointment_buttons(sender, appointments):
                 "text": "Quel rendez-vous souhaitez-vous annuler ?"
             },
             "action": {
-                "button": "Choisir un rendez-vous",
+                "button": "Choisir RDV",  # Raccourci pour respecter la limite de 20 caractères
                 "sections": sections
             }
         }

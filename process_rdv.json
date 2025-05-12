@@ -39,7 +39,7 @@
   },
   {
     "message": "D'accord, Nous allons verifier ensemble le créneau que vous souhaitez annuler, tapez ok pour continuer",
-    "expected_answers": ["ok","Ok","OK"],
+    "expected_answers": ["Ok"],
     "next_step": 99,
     "process_type": "annulation"
   }
