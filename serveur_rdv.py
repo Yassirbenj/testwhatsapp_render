@@ -1289,7 +1289,7 @@ def handle_cancellation_process(sender, state, text, message):
         if message.get("interactive") and message["interactive"].get("type") == "button_reply":
             button_id = message["interactive"]["button_reply"]["id"]
             print(f"[DEBUG] Button id is {button_id}")
-            if button_id.startswith("Oui"):
+            if button_id.startswith("confirm_cancel"):
                 # L'utilisateur a confirmé l'annulation
                 appointment_id = user_data[sender]["pending_cancel_id"]
                 if cancel_appointment(appointment_id):
@@ -1301,7 +1301,7 @@ def handle_cancellation_process(sender, state, text, message):
                 user_data[sender].pop("state", None)
                 user_data[sender].pop("process_type", None)
                 return "OK", 200
-            elif button_id.startswith("Non"):
+            elif button_id.startswith("cancel_cancel"):
                 # L'utilisateur a annulé l'annulation
                 send_message(sender, "✅ L'annulation a été annulée. Votre rendez-vous est maintenu.")
                 # Nettoyer la session
