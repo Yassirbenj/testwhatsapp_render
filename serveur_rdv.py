@@ -1351,31 +1351,41 @@ def handle_creation_process(sender, state, text, message):
             service_info.get('duration')
         )
         send_message(sender, f"Votre rendez-vous est confirmé ! 📅\nLien Google Calendar : {link}")
-        user_data[sender]['state'] = 'completed'
+        send_message(sender, "Tapez 'ok' pour continuer.")
+        user_data[sender]['state'] = 'confirmation_sent'
+        return "OK", 200
 
-        # Stocker les informations du rendez-vous dans user_data
-        user_data[sender]['data'].update({
-            'Date RDV': format_date_fr(slot_start),
-            'Heure fin RDV': format_date_fr(slot_end),
-            'Service': service_info.get('name'),
-            'Durée service': f"{service_info.get('duration')} min"
-        })
+    if state == 'confirmation_sent':
+        if text.lower() == 'ok':
+            # Stocker les informations du rendez-vous dans user_data
+            user_data[sender]['data'].update({
+                'Date RDV': format_date_fr(slot_start),
+                'Heure fin RDV': format_date_fr(slot_end),
+                'Service': service_info.get('name'),
+                'Durée service': f"{service_info.get('duration')} min"
+            })
 
-        # Enregistrer dans Google Sheets
-        save_to_google_sheets(sender, 'creation', {
-            'Date RDV': format_date_fr(slot_start),
-            'Heure fin RDV': format_date_fr(slot_end),
-            'Service': service_info.get('name'),
-            'Durée service': f"{service_info.get('duration')} min"
-        })
+            # Enregistrer dans Google Sheets
+            save_to_google_sheets(sender, 'creation', {
+                'Date RDV': format_date_fr(slot_start),
+                'Heure fin RDV': format_date_fr(slot_end),
+                'Service': service_info.get('name'),
+                'Durée service': f"{service_info.get('duration')} min"
+            })
 
-        # Envoyer le message final
-        send_final_message(sender)
-        user_data[sender]['state'] = 'final'
+            # Envoyer le message final
+            send_final_message(sender)
+            user_data[sender]['state'] = 'final'
+        else:
+            send_message(sender, "Merci de taper 'ok' pour continuer.")
         return "OK", 200
 
     if state == 'final':
-        handle_final_response(sender, text)
+        print(f"[DEBUG] État final - Réponse reçue: {text}")
+        if message.get("interactive") and message["interactive"].get("type") == "button_reply":
+            button_id = message["interactive"]["button_reply"]["id"]
+            print(f"[DEBUG] Button ID reçu: {button_id}")
+            handle_final_response(sender, button_id)
         return "OK", 200
 
     return "OK", 200
@@ -1450,7 +1460,11 @@ def handle_cancellation_process(sender, state, text, message):
         return "OK", 200
 
     if state == 'final':
-        handle_final_response(sender, text)
+        print(f"[DEBUG] État final - Réponse reçue: {text}")
+        if message.get("interactive") and message["interactive"].get("type") == "button_reply":
+            button_id = message["interactive"]["button_reply"]["id"]
+            print(f"[DEBUG] Button ID reçu: {button_id}")
+            handle_final_response(sender, button_id)
         return "OK", 200
 
     return "OK", 200
