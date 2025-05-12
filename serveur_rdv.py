@@ -1154,7 +1154,7 @@ def save_to_google_sheets(sender, process_type, additional_data=None):
         print(f"❌ Traceback: {traceback.format_exc()}")
         return False
 
-def send_final_message(sender,text):
+def send_final_message(sender, text):
     """Envoie le message final avec les options pour une nouvelle demande"""
     url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
     headers = {
@@ -1162,6 +1162,10 @@ def send_final_message(sender,text):
         "Content-Type": "application/json"
     }
 
+    # Envoyer d'abord le message de confirmation
+    send_message(sender, text)
+
+    # Envoyer ensuite le message avec les boutons
     payload = {
         "messaging_product": "whatsapp",
         "to": sender,
@@ -1169,7 +1173,7 @@ def send_final_message(sender,text):
         "interactive": {
             "type": "button",
             "body": {
-                "text": f"{text}./n Souhaitez-vous faire une autre demande ?"
+                "text": "Souhaitez-vous faire une autre demande ?"
             },
             "action": {
                 "buttons": [
@@ -1177,14 +1181,14 @@ def send_final_message(sender,text):
                         "type": "reply",
                         "reply": {
                             "id": "new_request",
-                            "title": "Oui, j'ai une nouvelle demande"
+                            "title": "Nouvelle demande"
                         }
                     },
                     {
                         "type": "reply",
                         "reply": {
                             "id": "no_new_request",
-                            "title": "Non, je n'ai pas d'autres demandes"
+                            "title": "Terminer"
                         }
                     }
                 ]
@@ -1345,7 +1349,7 @@ def handle_creation_process(sender, state, text, message):
             service_info.get('duration')
         )
         text_message= f"Votre rendez-vous est confirmé ! 📅\nLien Google Calendar : {link}"
-        send_final_message(sender,text_message)
+        send_final_message(sender, text_message)
         user_data[sender]['state'] = 'confirmation_sent'
         return "OK", 200
 
