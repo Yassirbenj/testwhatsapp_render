@@ -470,10 +470,8 @@ def send_step_message(to_number, step_index, process):
                     if answer == '1':
                         title = 'Prendre rendez-vous'
                     elif answer == '2':
-                        title = 'Modifier un RDV'
-                    elif answer == '3':
                         title = 'Annuler un RDV'
-                    elif answer == '4':
+                    elif answer == '3':
                         title = 'Autres'
 
                 buttons.append({
@@ -1090,6 +1088,72 @@ def test_conversation():
 
     print("\n=== Fin du test ===")
 
+def save_to_google_sheets(sender, process_type, additional_data=None):
+    """
+    Enregistre les données dans Google Sheets
+    Args:
+        sender: Le numéro de téléphone de l'expéditeur
+        process_type: Le type de processus ('creation', 'annulation', 'autres')
+        additional_data: Dictionnaire optionnel contenant des données supplémentaires à enregistrer
+    """
+    print(f"[DEBUG] Tentative d'enregistrement dans Google Sheets:")
+    print(f"- Process type: {process_type}")
+    print(f"- Sender: {sender}")
+    print(f"- Additional data: {additional_data}")
+
+    # Obtenir la date et l'heure actuelles
+    now = datetime.now()
+    date_heure = now.strftime("%d/%m/%Y %H:%M:%S")
+
+    # Déterminer le type de demande (1, 2 ou 3)
+    type_demande = None
+    if process_type == 'creation':
+        type_demande = 'creation'
+    elif process_type == 'annulation':
+        type_demande = 'annulation'
+    elif process_type == 'autres':
+        type_demande = 'autres'
+
+    # Construction de la ligne à enregistrer
+    record = [
+        sender,  # Numéro de téléphone WhatsApp
+        type_demande,  # Type de demande (1, 2 ou 3)
+        date_heure,  # Date et heure d'enregistrement
+    ]
+
+    # Ajouter les données de base
+    for key, value in user_data[sender]['data'].items():
+        record.append(value)
+
+    # Ajouter le type de processus
+    record.append(process_type)
+
+    # Ajouter les données supplémentaires si présentes
+    if additional_data:
+        for key, value in additional_data.items():
+            record.append(value)
+
+    print(f"[DEBUG] Données à enregistrer: {record}")
+    print(f"[DEBUG] Credentials file: {CREDENTIALS_FILE}")
+
+    # Ajouter une ligne dans Google Sheets
+    try:
+        print(f"[DEBUG] Connexion à Google Sheets...")
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = ServiceAccountCredentials.from_json_keyfile_name(CREDENTIALS_FILE, scope)
+        client = gspread.authorize(creds)
+        sheet = client.open("leads whatsapp").sheet1
+        print(f"[DEBUG] Ajout de la ligne dans Google Sheets...")
+        sheet.append_row(record)
+        print(f"✅ Lead ajouté dans Google Sheet : {record}")
+        return True
+    except Exception as e:
+        print(f"❌ Erreur lors de l'ajout dans Google Sheets: {str(e)}")
+        print(f"❌ Type d'erreur: {type(e)}")
+        import traceback
+        print(f"❌ Traceback: {traceback.format_exc()}")
+        return False
+
 def handle_creation_process(sender, state, text, message):
     """Gère le processus de création de rendez-vous"""
     print(f"[DEBUG] Gestion du processus de création - État: {state}")
@@ -1243,19 +1307,13 @@ def handle_creation_process(sender, state, text, message):
             'Durée service': f"{service_info.get('duration')} min"
         })
 
-        # Construction de la ligne à enregistrer
-        record = [sender]  # Numéro de téléphone WhatsApp
-        for key, value in user_data[sender]['data'].items():
-            record.append(value)
-
-        print("Données à enregistrer dans Google Sheet :", record)
-        # Ajouter une ligne dans Google Sheets
-        try:
-            print(f"Tentative d'ajout dans Google Sheets: {record}")
-            sheet.append_row(record)
-            print(f"✅ Lead ajouté dans Google Sheet : {record}")
-        except Exception as e:
-            print(f"❌ Erreur lors de l'ajout dans Google Sheets: {str(e)}")
+        # Enregistrer dans Google Sheets
+        save_to_google_sheets(sender, 'creation', {
+            'Date RDV': format_date_fr(slot_start),
+            'Heure fin RDV': format_date_fr(slot_end),
+            'Service': service_info.get('name'),
+            'Durée service': f"{service_info.get('duration')} min"
+        })
 
         return "OK", 200
 
@@ -1302,6 +1360,11 @@ def handle_cancellation_process(sender, state, text, message):
                 print(f"[DEBUG] Appointment id is {appointment_id}")
                 if cancel_appointment(appointment_id):
                     send_message(sender, "✅ Votre rendez-vous a été annulé avec succès.")
+                    # Enregistrer l'annulation dans Google Sheets
+                    save_to_google_sheets(sender, 'annulation', {
+                        'Appointment ID': appointment_id,
+                        'Status': 'Annulé'
+                    })
                 else:
                     send_message(sender, "❌ Désolé, une erreur s'est produite lors de l'annulation du rendez-vous.")
                 # Nettoyer la session
@@ -1312,6 +1375,10 @@ def handle_cancellation_process(sender, state, text, message):
             elif button_id.startswith("cancel_cancel"):
                 # L'utilisateur a annulé l'annulation
                 send_message(sender, "✅ L'annulation a été annulée. Votre rendez-vous est maintenu.")
+                # Enregistrer l'annulation annulée dans Google Sheets
+                save_to_google_sheets(sender, 'annulation', {
+                    'Status': 'Annulation annulée'
+                })
                 # Nettoyer la session
                 user_data[sender].pop("pending_cancel_id", None)
                 user_data[sender].pop("state", None)
@@ -1325,6 +1392,10 @@ def handle_other_process(sender, state):
     """Gère le processus d'autres"""
     print(f"[DEBUG] Gestion du processus d'autres - État: {state}")
     send_message(sender, "Merci votre message a été transmis à l'équipe, on reviendra vers vous dans les plus brefs délais")
+    # Enregistrer la demande dans Google Sheets
+    save_to_google_sheets(sender, 'autres', {
+        'Status': 'En attente de traitement'
+    })
     return "OK", 200
 
 # === RUN APP ===
