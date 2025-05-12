@@ -1202,13 +1202,25 @@ def send_final_message(sender, text):
 
 def handle_final_response(sender, text):
     """Gère la réponse au message final"""
+    print(f"[DEBUG] Gestion de la réponse finale - Réponse reçue: {text}")
     if text == "new_request":
-        # Réinitialiser le bot et envoyer le premier message
+        print("[DEBUG] Nouvelle demande détectée - Réinitialisation du bot")
+        # Réinitialiser le bot
         if sender in user_data:
             del user_data[sender]
+        # Initialiser un nouvel utilisateur
+        user_data[sender] = {
+            'state': 'initial',
+            'current_step': 0,
+            'data': {},
+            'process': process_rdv,
+            'last_activity': datetime.now()
+        }
+        # Envoyer le premier message
         send_step_message(sender, 0, process_rdv)
     elif text == "no_new_request":
-        # Effacer la conversation sans envoyer de message
+        print("[DEBUG] Fin de conversation détectée")
+        # Effacer la conversation
         if sender in user_data:
             del user_data[sender]
 
