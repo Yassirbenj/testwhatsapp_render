@@ -1154,6 +1154,60 @@ def save_to_google_sheets(sender, process_type, additional_data=None):
         print(f"❌ Traceback: {traceback.format_exc()}")
         return False
 
+def send_final_message(sender):
+    """Envoie le message final avec les options pour une nouvelle demande"""
+    url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {ACCESS_TOKEN}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": sender,
+        "type": "interactive",
+        "interactive": {
+            "type": "button",
+            "body": {
+                "text": "Souhaitez-vous faire une autre demande ?"
+            },
+            "action": {
+                "buttons": [
+                    {
+                        "type": "reply",
+                        "reply": {
+                            "id": "new_request",
+                            "title": "Oui, j'ai une nouvelle demande"
+                        }
+                    },
+                    {
+                        "type": "reply",
+                        "reply": {
+                            "id": "no_new_request",
+                            "title": "Non, je n'ai pas d'autres demandes"
+                        }
+                    }
+                ]
+            }
+        }
+    }
+
+    print("[DEBUG] Envoi du message final avec options")
+    response = requests.post(url, headers=headers, data=json.dumps(payload))
+    print("Réponse envoi message final:", response.status_code, response.json())
+
+def handle_final_response(sender, text):
+    """Gère la réponse au message final"""
+    if text == "new_request":
+        # Réinitialiser le bot et envoyer le premier message
+        if sender in user_data:
+            del user_data[sender]
+        send_step_message(sender, 0, process_rdv)
+    elif text == "no_new_request":
+        # Effacer la conversation sans envoyer de message
+        if sender in user_data:
+            del user_data[sender]
+
 def handle_creation_process(sender, state, text, message):
     """Gère le processus de création de rendez-vous"""
     print(f"[DEBUG] Gestion du processus de création - État: {state}")
@@ -1315,6 +1369,13 @@ def handle_creation_process(sender, state, text, message):
             'Durée service': f"{service_info.get('duration')} min"
         })
 
+        # Envoyer le message final
+        send_final_message(sender)
+        user_data[sender]['state'] = 'final'
+        return "OK", 200
+
+    if state == 'final':
+        handle_final_response(sender, text)
         return "OK", 200
 
     return "OK", 200
@@ -1369,8 +1430,9 @@ def handle_cancellation_process(sender, state, text, message):
                     send_message(sender, "❌ Désolé, une erreur s'est produite lors de l'annulation du rendez-vous.")
                 # Nettoyer la session
                 user_data[sender].pop("pending_cancel_id", None)
-                user_data[sender].pop("state", None)
-                user_data[sender].pop("process_type", None)
+                # Envoyer le message final
+                send_final_message(sender)
+                user_data[sender]['state'] = 'final'
                 return "OK", 200
             elif button_id.startswith("cancel_cancel"):
                 # L'utilisateur a annulé l'annulation
@@ -1381,9 +1443,14 @@ def handle_cancellation_process(sender, state, text, message):
                 })
                 # Nettoyer la session
                 user_data[sender].pop("pending_cancel_id", None)
-                user_data[sender].pop("state", None)
-                user_data[sender].pop("process_type", None)
+                # Envoyer le message final
+                send_final_message(sender)
+                user_data[sender]['state'] = 'final'
                 return "OK", 200
+        return "OK", 200
+
+    if state == 'final':
+        handle_final_response(sender, text)
         return "OK", 200
 
     return "OK", 200
@@ -1396,6 +1463,9 @@ def handle_other_process(sender, state):
     save_to_google_sheets(sender, 'autres', {
         'Status': 'En attente de traitement'
     })
+    # Envoyer le message final
+    send_final_message(sender)
+    user_data[sender]['state'] = 'final'
     return "OK", 200
 
 # === RUN APP ===
