@@ -341,9 +341,12 @@ def webhook():
                                     if text == '1':
                                         user_data[sender]['process_type'] = 'creation'
                                         print(f"[DEBUG] Process type défini à: creation")
-                                    elif text == '3':
+                                    elif text == '2':
                                         user_data[sender]['process_type'] = 'annulation'
                                         print(f"[DEBUG] Process type défini à: annulation")
+                                    elif text == '3':
+                                        user_data[sender]['process_type'] = 'autres'
+                                        print(f"[DEBUG] Process type défini à: autres")
                                     else:
                                         print(f"[DEBUG] Type de demande non reconnu: {text}")
 
@@ -381,6 +384,9 @@ def webhook():
                             elif user_data[sender].get("process_type") == "annulation":
                                 print("[DEBUG] Lancement du processus d'annulation")
                                 return handle_cancellation_process(sender, state, text, message)
+                            elif user_data[sender].get("process_type") == "autres":
+                                print("[DEBUG] Lancement du processus d'autres")
+                                return handle_other_process(sender, state)
                             print("[DEBUG] Aucun processus spécial trouvé")
                             return "OK", 200
 
@@ -1313,6 +1319,12 @@ def handle_cancellation_process(sender, state, text, message):
                 return "OK", 200
         return "OK", 200
 
+    return "OK", 200
+
+def handle_other_process(sender, state):
+    """Gère le processus d'autres"""
+    print(f"[DEBUG] Gestion du processus d'autres - État: {state}")
+    send_message(sender, "Merci votre message a été transmis à l'équipe, on reviendra vers vous dans les plus brefs délais")
     return "OK", 200
 
 # === RUN APP ===

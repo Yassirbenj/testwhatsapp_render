@@ -1,12 +1,11 @@
 [
   {
-    "message": "Bonjour 👋, bienvenue chez Garage Autobest !\nComment puis-je vous aider ?\n\n1- Prendre rendez-vous\n2- Modifier un rendez-vous\n3- Annuler un rendez-vous\n4- Autres",
-    "expected_answers": ["1", "2", "3", "4"],
+    "message": "Bonjour 👋, bienvenue chez Garage Autobest !\nComment puis-je vous aider ?\n\n1- Prendre rendez-vous\n2- Annuler un rendez-vous\n3- Autres",
+    "expected_answers": ["1", "2", "3"],
     "next_step": {
       "1": 1,
-      "2": 3,
-      "3": 5,
-      "4": 5
+      "2": 5,
+      "3": 6
     },
     "save_as": "Type de demande"
   },
@@ -34,13 +33,16 @@
   {
     "message": "Merci beaucoup ! 🙏 Nous allons maintenant choisir ensemble un créneau pour votre rendez-vous. tapez ok pour continuer",
     "expected_answers": ["Ok"],
-    "next_step": 99,
-    "process_type": "creation"
+    "next_step": 99
   },
   {
     "message": "D'accord, Nous allons verifier ensemble le créneau que vous souhaitez annuler, tapez ok pour continuer",
     "expected_answers": ["Ok"],
-    "next_step": 99,
-    "process_type": "annulation"
+    "next_step": 99
+  },
+  {
+    "message": "Merci de saisir votre demande spécifique",
+    "expected_answers": "free_text",
+    "next_step": 99
   }
 ]
