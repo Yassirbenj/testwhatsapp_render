@@ -323,21 +323,29 @@ def webhook():
                         if isinstance(next_step, dict) or (isinstance(next_step, (int, str)) and int(next_step) < 99):
                             print("[DEBUG] Traitement d'une étape normale")
                             current_step = current_process[step_index]
+                            print(f"[DEBUG] Étape actuelle: {current_step}")
 
                             # === SAUVEGARDE de la réponse utilisateur ===
                             save_key = current_step.get('save_as')
+                            print(f"[DEBUG] Save key trouvé: {save_key}")
+                            print(f"[DEBUG] Réponse utilisateur: {text}")
+
                             if save_key:
                                 print(f"[DEBUG] Sauvegarde de la réponse sous la clé: {save_key}")
                                 user_data[sender]['data'][save_key] = text
 
                                 # Définir le type de processus en fonction de la réponse
                                 if save_key == 'Type de demande':
+                                    print(f"[DEBUG] Type de demande détecté")
+                                    print(f"[DEBUG] Message reçu: '{text}'")
                                     if text == '1- Prendre rendez-vous':
                                         user_data[sender]['process_type'] = 'creation'
                                         print(f"[DEBUG] Process type défini à: creation")
                                     elif text == '3- Annuler un RDV':
                                         user_data[sender]['process_type'] = 'annulation'
                                         print(f"[DEBUG] Process type défini à: annulation")
+                                    else:
+                                        print(f"[DEBUG] Type de demande non reconnu: {text}")
 
                             if current_step['expected_answers'] != "free_text":
                                 print("[DEBUG] Vérification des réponses attendues")
