@@ -290,10 +290,10 @@ def webhook():
                         if sender not in user_data:
                             print("[DEBUG] Nouvel utilisateur détecté")
                             # Premier message - choisir le processus
-                            if text == 'Prendre rendez-vous':
+                            if text == '1- Prendre rendez-vous':
                                 user_data[sender]['process_type'] = 'creation'
                                 print(f"[DEBUG] Process type défini à: creation")
-                            elif text == 'Annuler un rendez-vous':
+                            elif text == '3- Annuler un rendez-vous':
                                 user_data[sender]['process_type'] = 'annulation'
                                 print(f"[DEBUG] Process type défini à: annulation")
                             user_data[sender] = {
