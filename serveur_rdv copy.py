@@ -80,10 +80,6 @@ print(calendar_service.calendarList().list().execute())
 print(drive_service.files().list().execute())
 # Fonction de recherche de créneaux
 def find_available_slots(start_date, service_duration, num_days=5):
-    print(f"\n[DEBUG] Recherche de créneaux disponibles:")
-    print(f"- Date de début: {start_date}")
-    print(f"- Durée du service: {service_duration} minutes")
-    print(f"- Nombre de jours: {num_days}")
     # En mode test, retourner des créneaux fictifs
     if os.getenv('TEST_MODE') == 'True':
         timezone = pytz.timezone(TIMEZONE)
@@ -155,12 +151,6 @@ def find_available_slots(start_date, service_duration, num_days=5):
 
 # Fonction créer rendez-vous
 def create_appointment(sender, slot_start, slot_end, service_name, service_duration):
-    print(f"\n[DEBUG] Création d'un rendez-vous:")
-    print(f"- Client: {sender}")
-    print(f"- Début: {slot_start}")
-    print(f"- Fin: {slot_end}")
-    print(f"- Service: {service_name}")
-    print(f"- Durée: {service_duration} minutes")
     # En mode test, simuler la création d'un rendez-vous
     if os.getenv('TEST_MODE') == 'True':
         print(f"\n[Création de rendez-vous simulée]")
@@ -227,19 +217,13 @@ app = Flask(__name__)
 
 @app.route('/webhook', methods=['GET', 'POST'])
 def webhook():
-    print("\n[DEBUG] Réception d'une requête webhook")
     if request.method == 'GET':
-        print("[DEBUG] Méthode GET détectée")
         if request.args.get("hub.mode") == "subscribe" and request.args.get("hub.verify_token") == VERIFY_TOKEN:
-            print("[DEBUG] Vérification du token réussie")
             return request.args.get("hub.challenge"), 200
-        print("[DEBUG] Échec de la vérification du token")
         return "Erreur de vérification", 403
 
     if request.method == 'POST':
-        print("[DEBUG] Méthode POST détectée")
         data = request.get_json()
-        print(f"[DEBUG] Données reçues: {json.dumps(data, indent=2)}")
 
         if data.get('entry'):
             for entry in data['entry']:
@@ -311,6 +295,25 @@ def webhook():
                             if save_key:
                                 user_data[sender]['data'][save_key] = text
 
+                            if current_step['expected_answers'] == "no_reply":
+                                # Pas besoin d'attendre l'utilisateur
+                                next_step = current_step['next_step']
+                                if isinstance(next_step, dict):
+                                    user_data[sender]['current_step'] = next_step.get(text, 99)
+                                else:
+                                    user_data[sender]['current_step'] = next_step
+
+                                # ⚡ Directement lancer la suite
+                                if user_data[sender]['current_step'] >= len(current_process):
+                                    print(f"Utilisateur {sender} a terminé le process principal (no_reply). Passage à la suite.")
+                                    send_message(sender, "À partir de quelle date souhaitez-vous prendre rendez-vous ?")
+                                    send_date_buttons(sender)
+                                    user_data[sender]['state'] = 'ask_start_date'
+                                    return "OK", 200
+
+                                send_step_message(sender, user_data[sender]['current_step'], current_process)
+                                return "OK", 200
+
                             if current_step['expected_answers'] != "free_text":
                                 # Utiliser les réponses attendues stockées si disponibles
                                 valid_answers = user_data[sender].get('current_expected_answers', current_step['expected_answers'])
@@ -327,6 +330,14 @@ def webhook():
 
                             # pour debug
                             print(f"next step is : {user_data[sender]['current_step']}")
+
+                            # Vérifier si on a atteint la fin du processus
+                            if user_data[sender]['current_step'] >= len(current_process):
+                                print(f"Utilisateur {sender} a terminé le process principal. Passage à la prise de RDV.")
+                                send_message(sender, "Merci pour vos réponses 🙏. Maintenant, choisissons ensemble un créneau pour votre rendez-vous.")
+                                send_date_buttons(sender)  # Envoyer les boutons de date
+                                user_data[sender]['state'] = 'ask_start_date'
+                                return "OK", 200
 
                             send_step_message(sender, user_data[sender]['current_step'], current_process)
                             return "OK", 200
@@ -576,10 +587,7 @@ def get_services_ids(services):
     return [service['id'] for service in services['services']]
 
 def send_step_message(to_number, step_index, process):
-    print(f"\n[DEBUG] Envoi du message d'étape:")
-    print(f"- Destinataire: {to_number}")
-    print(f"- Index de l'étape: {step_index}")
-    print(f"- Processus: {process[step_index].get('message', 'Pas de message')}")
+    """Envoie le message de l'étape en cours avec les données dynamiques si nécessaire"""
     step = process[step_index]
     message = step['message']
     expected_answers = step['expected_answers']
@@ -865,8 +873,7 @@ def test_process_local():
             print("---")
 
 def get_future_appointments(sender):
-    print(f"\n[DEBUG] Recherche des rendez-vous futurs:")
-    print(f"- Client: {sender}")
+    """Récupère les rendez-vous futurs d'un utilisateur"""
     if os.getenv('TEST_MODE') == 'True':
         # En mode test, retourner des rendez-vous fictifs
         today = datetime.now()
@@ -914,9 +921,7 @@ def get_future_appointments(sender):
     return appointments
 
 def send_appointment_buttons(sender, appointments):
-    print(f"\n[DEBUG] Envoi des boutons de rendez-vous:")
-    print(f"- Client: {sender}")
-    print(f"- Nombre de rendez-vous: {len(appointments)}")
+    """Envoie la liste des rendez-vous à annuler"""
     if not appointments:
         send_message(sender, "Vous n'avez aucun rendez-vous à venir.")
         return False
@@ -980,9 +985,7 @@ def send_appointment_buttons(sender, appointments):
     return True
 
 def send_confirmation_buttons(sender, appointment_id):
-    print(f"\n[DEBUG] Envoi des boutons de confirmation:")
-    print(f"- Client: {sender}")
-    print(f"- ID du rendez-vous: {appointment_id}")
+    """Envoie les boutons de confirmation pour l'annulation"""
     url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
     headers = {
         "Authorization": f"Bearer {ACCESS_TOKEN}",
@@ -1036,8 +1039,7 @@ def get_calendar_service():
         return None
 
 def cancel_appointment(appointment_id):
-    print(f"\n[DEBUG] Tentative d'annulation du rendez-vous:")
-    print(f"- ID du rendez-vous: {appointment_id}")
+    """Annule un rendez-vous dans Google Calendar"""
     try:
         service = get_calendar_service()
         if service:
