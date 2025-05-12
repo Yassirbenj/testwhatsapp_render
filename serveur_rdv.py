@@ -1154,7 +1154,7 @@ def save_to_google_sheets(sender, process_type, additional_data=None):
         print(f"❌ Traceback: {traceback.format_exc()}")
         return False
 
-def send_final_message(sender):
+def send_final_message(sender,text):
     """Envoie le message final avec les options pour une nouvelle demande"""
     url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
     headers = {
@@ -1169,7 +1169,7 @@ def send_final_message(sender):
         "interactive": {
             "type": "button",
             "body": {
-                "text": "Souhaitez-vous faire une autre demande ?"
+                "text": f"{text}./n Souhaitez-vous faire une autre demande ?"
             },
             "action": {
                 "buttons": [
@@ -1350,8 +1350,8 @@ def handle_creation_process(sender, state, text, message):
             service_info.get('name'),
             service_info.get('duration')
         )
-        send_message(sender, f"Votre rendez-vous est confirmé ! 📅\nLien Google Calendar : {link}")
-        send_final_message(sender)
+        text_message= f"Votre rendez-vous est confirmé ! 📅\nLien Google Calendar : {link}"
+        send_final_message(sender,text_message)
         user_data[sender]['state'] = 'confirmation_sent'
         return "OK", 200
 
