@@ -1431,23 +1431,23 @@ def handle_cancellation_process(sender, state, text, message):
                 appointment_id = user_data[sender]["pending_cancel_id"]
                 print(f"[DEBUG] Appointment id is {appointment_id}")
                 if cancel_appointment(appointment_id):
-                    send_message(sender, "✅ Votre rendez-vous a été annulé avec succès.")
+                    text_message = "✅ Votre rendez-vous a été annulé avec succès."
                     # Enregistrer l'annulation dans Google Sheets
                     save_to_google_sheets(sender, 'annulation', {
                         'Appointment ID': appointment_id,
                         'Status': 'Annulé'
                     })
                 else:
-                    send_message(sender, "❌ Désolé, une erreur s'est produite lors de l'annulation du rendez-vous.")
+                    text_message = "❌ Désolé, une erreur s'est produite lors de l'annulation du rendez-vous."
                 # Nettoyer la session
                 user_data[sender].pop("pending_cancel_id", None)
                 # Envoyer le message final
-                send_final_message(sender)
+                send_final_message(sender, text_message)
                 user_data[sender]['state'] = 'final'
                 return "OK", 200
             elif button_id.startswith("cancel_cancel"):
                 # L'utilisateur a annulé l'annulation
-                send_message(sender, "✅ L'annulation a été annulée. Votre rendez-vous est maintenu.")
+                text_message = "✅ L'annulation a été annulée. Votre rendez-vous est maintenu."
                 # Enregistrer l'annulation annulée dans Google Sheets
                 save_to_google_sheets(sender, 'annulation', {
                     'Status': 'Annulation annulée'
@@ -1455,7 +1455,7 @@ def handle_cancellation_process(sender, state, text, message):
                 # Nettoyer la session
                 user_data[sender].pop("pending_cancel_id", None)
                 # Envoyer le message final
-                send_final_message(sender)
+                send_final_message(sender, text_message)
                 user_data[sender]['state'] = 'final'
                 return "OK", 200
         return "OK", 200
@@ -1473,13 +1473,13 @@ def handle_cancellation_process(sender, state, text, message):
 def handle_other_process(sender, state):
     """Gère le processus d'autres"""
     print(f"[DEBUG] Gestion du processus d'autres - État: {state}")
-    send_message(sender, "Merci votre message a été transmis à l'équipe, on reviendra vers vous dans les plus brefs délais")
+    text_message = "Merci votre message a été transmis à l'équipe, on reviendra vers vous dans les plus brefs délais"
     # Enregistrer la demande dans Google Sheets
     save_to_google_sheets(sender, 'autres', {
         'Status': 'En attente de traitement'
     })
     # Envoyer le message final
-    send_final_message(sender)
+    send_final_message(sender, text_message)
     user_data[sender]['state'] = 'final'
     return "OK", 200
 
