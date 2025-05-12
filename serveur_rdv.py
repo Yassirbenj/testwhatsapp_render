@@ -1213,12 +1213,6 @@ def handle_creation_process(sender, state, text, message):
     print(f"[DEBUG] Gestion du processus de création - État: {state}")
 
     if state == 'initial':
-        print(f"Utilisateur {sender} a terminé le process principal. Passage à la suite.")
-        send_message(sender, "Merci pour vos réponses 🙏. Maintenant, choisissons ensemble un créneau pour votre rendez-vous.")
-        user_data[sender]['state'] = 'ask_start_date'
-        return "OK", 200
-
-    if state == 'ask_start_date':
         # La date peut venir soit des boutons, soit d'une saisie manuelle
         try:
             # Si c'est une réponse de bouton, le format est dd/MM/yyyy
