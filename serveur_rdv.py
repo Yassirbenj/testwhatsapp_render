@@ -356,6 +356,7 @@ def webhook():
                         else:
                             print(f"[DEBUG] Fin du processus - next_step: {next_step}")
                             # Ici c'est fini, on lance la suite spéciale selon le processus
+                            print(f"[DEBUG] Valeur de process_type: {user_data[sender].get('process_type')}")
                             if user_data[sender].get("process_type") == "creation":
                                 print("[DEBUG] Lancement du processus de création")
                                 return handle_creation_process(sender, state, text, message)
