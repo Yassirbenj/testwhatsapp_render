@@ -338,10 +338,10 @@ def webhook():
                                 if save_key == 'Type de demande':
                                     print(f"[DEBUG] Type de demande détecté")
                                     print(f"[DEBUG] Message reçu: '{text}'")
-                                    if text == '1- Prendre rendez-vous':
+                                    if text == '1':
                                         user_data[sender]['process_type'] = 'creation'
                                         print(f"[DEBUG] Process type défini à: creation")
-                                    elif text == '3- Annuler un RDV':
+                                    elif text == '3':
                                         user_data[sender]['process_type'] = 'annulation'
                                         print(f"[DEBUG] Process type défini à: annulation")
                                     else:
