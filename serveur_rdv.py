@@ -290,6 +290,12 @@ def webhook():
                         if sender not in user_data:
                             print("[DEBUG] Nouvel utilisateur détecté")
                             # Premier message - choisir le processus
+                            if text == 'Prendre rendez-vous':
+                                user_data[sender]['process_type'] = 'creation'
+                                print(f"[DEBUG] Process type défini à: creation")
+                            elif text == 'Annuler un rendez-vous':
+                                user_data[sender]['process_type'] = 'annulation'
+                                print(f"[DEBUG] Process type défini à: annulation")
                             user_data[sender] = {
                                 'state': 'initial',
                                 'current_step': 0,
@@ -307,12 +313,14 @@ def webhook():
                         step_index = user_data[sender]['current_step']
                         current_process = user_data[sender]['process']
                         next_step = current_process[step_index]['next_step']
+                        process_type = user_data[sender].get('process_type')
 
                         print(f"[DEBUG] État actuel:")
                         print(f"- État: {state}")
                         print(f"- Index étape: {step_index}")
                         print(f"- Longueur processus: {len(current_process)}")
                         print(f"- Prochaine étape: {next_step}")
+                        print(f"- Process type: {process_type}")
 
                         # Convertir next_step en int si c'est une chaîne de caractères
                         if isinstance(next_step, str) and next_step.isdigit():
@@ -328,15 +336,6 @@ def webhook():
                             if save_key:
                                 print(f"[DEBUG] Sauvegarde de la réponse sous la clé: {save_key}")
                                 user_data[sender]['data'][save_key] = text
-
-                                # Définir le type de processus en fonction de la réponse
-                                if save_key == 'Type de demande':
-                                    if text == '1':
-                                        user_data[sender]['process_type'] = 'creation'
-                                        print(f"[DEBUG] Process type défini à: creation")
-                                    elif text == '3':
-                                        user_data[sender]['process_type'] = 'annulation'
-                                        print(f"[DEBUG] Process type défini à: annulation")
 
                             if current_step['expected_answers'] != "free_text":
                                 print("[DEBUG] Vérification des réponses attendues")
