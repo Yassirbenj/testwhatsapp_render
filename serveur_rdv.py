@@ -1288,6 +1288,7 @@ def handle_cancellation_process(sender, state, text, message):
     elif state == "pending_cancel_confirmation":
         if message.get("interactive") and message["interactive"].get("type") == "button_reply":
             button_id = message["interactive"]["button_reply"]["id"]
+            print(f"[DEBUG] Button id is {button_id}")
             if button_id.startswith("Oui"):
                 # L'utilisateur a confirmé l'annulation
                 appointment_id = user_data[sender]["pending_cancel_id"]
