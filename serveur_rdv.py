@@ -249,22 +249,29 @@ def webhook():
                     if messages:
                         message = messages[0]
                         sender = message['from']
+                        print(f"[DEBUG] Message reçu de {sender}")
 
                         # Gérer les réponses interactives
                         if 'interactive' in message:
+                            print("[DEBUG] Message interactif détecté")
                             interactive = message['interactive']
                             # Gérer les réponses de boutons
                             if 'button_reply' in interactive:
                                 text = interactive['button_reply']['id']
+                                print(f"[DEBUG] Réponse bouton: {text}")
                             # Gérer les réponses de liste
                             elif 'list_reply' in interactive:
                                 text = interactive['list_reply']['id']
+                                print(f"[DEBUG] Réponse liste: {text}")
                             else:
+                                print("[DEBUG] Type interactif non géré")
                                 send_message(sender, "Merci de répondre avec un message texte")
                                 return "OK", 200
                         elif 'text' in message:
                             text = message['text'].get('body')
+                            print(f"[DEBUG] Message texte: {text}")
                         else:
+                            print("[DEBUG] Type de message non géré")
                             send_message(sender, "Merci de répondre avec un message texte")
                             return "OK", 200
 
@@ -273,6 +280,7 @@ def webhook():
 
                         # Gérer la commande de réinitialisation
                         if text.lower() in ['reset', 'recommencer', 'nouveau', 'start']:
+                            print("[DEBUG] Commande de réinitialisation détectée")
                             if sender in user_data:
                                 del user_data[sender]
                             # Utiliser le premier message du process_rdv
@@ -280,6 +288,7 @@ def webhook():
                             return "OK", 200
 
                         if sender not in user_data:
+                            print("[DEBUG] Nouvel utilisateur détecté")
                             # Premier message - choisir le processus
                             user_data[sender] = {
                                 'state': 'initial',
@@ -289,7 +298,6 @@ def webhook():
                                 'last_activity': datetime.now()
                             }
                             send_step_message(sender, 0, process_rdv)
-
                             return "OK", 200
 
                         # Mettre à jour le timestamp de dernière activité
@@ -300,25 +308,33 @@ def webhook():
                         current_process = user_data[sender]['process']
                         next_step = current_process[step_index]['next_step']
 
-                        # pour debug
-                        print(f"État: {state}, step index: {step_index}, longueur du processus: {len(current_process)}, next step: {next_step}")
+                        print(f"[DEBUG] État actuel:")
+                        print(f"- État: {state}")
+                        print(f"- Index étape: {step_index}")
+                        print(f"- Longueur processus: {len(current_process)}")
+                        print(f"- Prochaine étape: {next_step}")
 
                         # Convertir next_step en int si c'est une chaîne de caractères
                         if isinstance(next_step, str) and next_step.isdigit():
                             next_step = int(next_step)
+                            print(f"[DEBUG] next_step converti en int: {next_step}")
 
                         if isinstance(next_step, dict) or (isinstance(next_step, (int, str)) and int(next_step) < 99):
+                            print("[DEBUG] Traitement d'une étape normale")
                             current_step = current_process[step_index]
 
                             # === SAUVEGARDE de la réponse utilisateur ===
                             save_key = current_step.get('save_as')
                             if save_key:
+                                print(f"[DEBUG] Sauvegarde de la réponse sous la clé: {save_key}")
                                 user_data[sender]['data'][save_key] = text
 
                             if current_step['expected_answers'] != "free_text":
+                                print("[DEBUG] Vérification des réponses attendues")
                                 # Utiliser les réponses attendues stockées si disponibles
                                 valid_answers = user_data[sender].get('current_expected_answers', current_step['expected_answers'])
                                 if text not in valid_answers:
+                                    print(f"[DEBUG] Réponse invalide: {text}")
                                     send_message(sender, "Merci de répondre avec une option valide.")
                                     return "OK", 200
 
@@ -333,7 +349,6 @@ def webhook():
                                 print(f"[DEBUG] next_step est une valeur simple: {next_step}")
                                 user_data[sender]['current_step'] = next_step
 
-                            # pour debug
                             print(f"[DEBUG] next step après traitement: {user_data[sender]['current_step']}")
 
                             send_step_message(sender, user_data[sender]['current_step'], current_process)
@@ -342,12 +357,22 @@ def webhook():
                             print(f"[DEBUG] Fin du processus - next_step: {next_step}")
                             # Ici c'est fini, on lance la suite spéciale selon le processus
                             if user_data[sender].get("process_type") == "creation":
+                                print("[DEBUG] Lancement du processus de création")
                                 return handle_creation_process(sender, state, text, message)
                             elif user_data[sender].get("process_type") == "annulation":
+                                print("[DEBUG] Lancement du processus d'annulation")
                                 return handle_cancellation_process(sender, state, text, message)
+                            print("[DEBUG] Aucun processus spécial trouvé")
                             return "OK", 200
 
-                        return "OK", 200  # Ajout d'un retour par défaut
+                        print("[DEBUG] Fin du traitement du message")
+                        return "OK", 200
+
+        print("[DEBUG] Aucun message trouvé dans la requête")
+        return "OK", 200
+
+    print("[DEBUG] Méthode non supportée")
+    return "Méthode non supportée", 405
 
 # === ENVOI DE MESSAGES WHATSAPP ===
 
