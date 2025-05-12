@@ -303,7 +303,11 @@ def webhook():
                         # pour debug
                         print(f"État: {state}, step index: {step_index}, longueur du processus: {len(current_process)}, next step: {next_step}")
 
-                        if next_step < 99:
+                        # Convertir next_step en int si c'est une chaîne de caractères
+                        if isinstance(next_step, str) and next_step.isdigit():
+                            next_step = int(next_step)
+
+                        if isinstance(next_step, dict) or (isinstance(next_step, (int, str)) and int(next_step) < 99):
                             current_step = current_process[step_index]
 
                             # === SAUVEGARDE de la réponse utilisateur ===
