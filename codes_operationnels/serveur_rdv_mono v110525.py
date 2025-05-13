@@ -1,4 +1,5 @@
-'''solution de bot rdv'''
+'''solution de bot rdv - solution operationnelle pour 1 client avec creation,
+annulation, autres - v110525'''
 
 from flask import Flask, request, jsonify
 import requests
@@ -283,49 +284,26 @@ def webhook():
                             print("[DEBUG] Commande de réinitialisation détectée")
                             if sender in user_data:
                                 del user_data[sender]
-                            send_garage_selection_message(sender)
+                            # Utiliser le premier message du process_rdv
+                            send_step_message(sender, 0, process_rdv)
                             return "OK", 200
 
                         if sender not in user_data:
                             print("[DEBUG] Nouvel utilisateur détecté")
-                            # Premier message - choisir le garage
+                            # Premier message - choisir le processus
                             user_data[sender] = {
                                 'state': 'initial',
                                 'current_step': 0,
                                 'data': {},
+                                'process': process_rdv,
                                 'last_activity': datetime.now()
                             }
-                            send_garage_selection_message(sender)
+                            send_step_message(sender, 0, process_rdv)
                             return "OK", 200
 
                         # Mettre à jour le timestamp de dernière activité
                         user_data[sender]['last_activity'] = datetime.now()
 
-                        # Si l'utilisateur n'a pas encore sélectionné de garage
-                        if 'selected_garage' not in user_data[sender]:
-                            garage = handle_garage_selection(sender, text)
-                            if garage:
-                                user_data[sender]['selected_garage'] = garage
-                            return "OK", 200
-
-                        # Si l'utilisateur a répondu à la confirmation du garage
-                        if 'selected_garage' in user_data[sender] and user_data[sender].get('state') == 'initial':
-                            if text == 'confirm_garage':
-                                # Initialiser le processus avec le process_id du garage
-                                user_data[sender]['process'] = process_rdv  # Utiliser le processus par défaut
-                                user_data[sender]['state'] = 'initial'
-                                user_data[sender]['current_step'] = 0
-                                # Envoyer le premier message du processus
-                                send_step_message(sender, 0, process_rdv)
-                                return "OK", 200
-                            elif text == 'change_garage':
-                                # Supprimer le garage sélectionné
-                                del user_data[sender]['selected_garage']
-                                # Renvoyer la liste des garages
-                                send_garage_selection_message(sender)
-                                return "OK", 200
-
-                        # Continuer avec le processus normal si un garage est sélectionné
                         state = user_data[sender]['state']
                         step_index = user_data[sender]['current_step']
                         current_process = user_data[sender]['process']
@@ -336,6 +314,7 @@ def webhook():
                         print(f"- Index étape: {step_index}")
                         print(f"- Longueur processus: {len(current_process)}")
                         print(f"- Prochaine étape: {next_step}")
+
 
                         # Convertir next_step en int si c'est une chaîne de caractères
                         if isinstance(next_step, str) and next_step.isdigit():
@@ -1521,113 +1500,6 @@ def handle_other_process(sender, state):
     send_final_message(sender, text_message)
     user_data[sender]['state'] = 'final'
     return "OK", 200
-
-def handle_garage_selection(sender, text):
-    """Gère la sélection du garage par l'utilisateur et retourne les informations du garage"""
-    print(f"\n[DEBUG] Gestion de la sélection du garage:")
-    print(f"- Sender: {sender}")
-    print(f"- Texte reçu: {text}")
-
-    # Supprimer le @ si présent
-    pseudo = text.replace('@', '').strip()
-    print(f"[DEBUG] Pseudo nettoyé: {pseudo}")
-
-    garage = get_garage_by_pseudo(pseudo)
-
-    if garage:
-        print(f"[DEBUG] Garage trouvé: {garage['name']}")
-        # Envoyer un message de confirmation
-        confirmation_message = f"Vous avez sélectionné le garage : {garage['name']} ({garage['city']})"
-        print(f"[DEBUG] Envoi du message de confirmation: {confirmation_message}")
-        send_message(sender, confirmation_message)
-
-        # Envoyer un bouton de confirmation
-        print("[DEBUG] Préparation des boutons de confirmation")
-        url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
-        headers = {
-            "Authorization": f"Bearer {ACCESS_TOKEN}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": sender,
-            "type": "interactive",
-            "interactive": {
-                "type": "button",
-                "body": {
-                    "text": "Voulez-vous continuer avec ce garage ?"
-                },
-                "action": {
-                    "buttons": [
-                        {
-                            "type": "reply",
-                            "reply": {
-                                "id": "confirm_garage",
-                                "title": "OK"
-                            }
-                        },
-                        {
-                            "type": "reply",
-                            "reply": {
-                                "id": "change_garage",
-                                "title": "Changer de garage"
-                            }
-                        }
-                    ]
-                }
-            }
-        }
-        print("[DEBUG] Envoi des boutons de confirmation")
-        response = requests.post(url, headers=headers, data=json.dumps(payload))
-        print(f"[DEBUG] Réponse envoi confirmation: {response.status_code} - {response.json()}")
-        return garage
-    else:
-        print("[DEBUG] Garage non trouvé, envoi du message d'erreur")
-        send_message(sender, "Désolé, je ne trouve pas ce garage. Veuillez réessayer avec un pseudo valide.")
-        send_garage_selection_message(sender)
-        return None
-
-def load_garages():
-    """Charge les garages depuis le fichier garages.json"""
-    print("\n[DEBUG] Chargement des garages depuis garages.json")
-    try:
-        with open('garages.json', 'r') as f:
-            garages = json.load(f)
-            print(f"[DEBUG] {len(garages['garages'])} garages chargés")
-            return garages
-    except Exception as e:
-        print(f"[ERROR] Erreur lors du chargement des garages: {str(e)}")
-        return {"garages": []}
-
-def format_garages_list(garages):
-    """Formate la liste des garages pour l'affichage"""
-    print("\n[DEBUG] Formatage de la liste des garages")
-    formatted_list = []
-    for garage in garages['garages']:
-        formatted_line = f"🏪 {garage['name']} ({garage['city']}) - @{garage['pseudo']}"
-        formatted_list.append(formatted_line)
-        print(f"[DEBUG] Garage formaté: {formatted_line}")
-    return "\n".join(formatted_list)
-
-def get_garage_by_pseudo(pseudo):
-    """Récupère un garage par son pseudo"""
-    print(f"\n[DEBUG] Recherche du garage avec le pseudo: {pseudo}")
-    garages = load_garages()
-    for garage in garages['garages']:
-        if garage['pseudo'].lower() == pseudo.lower():
-            print(f"[DEBUG] Garage trouvé: {garage['name']} ({garage['city']})")
-            return garage
-    print("[DEBUG] Aucun garage trouvé avec ce pseudo")
-    return None
-
-def send_garage_selection_message(sender):
-    """Envoie le message de sélection du garage"""
-    print(f"\n[DEBUG] Envoi du message de sélection de garage à {sender}")
-    garages = load_garages()
-    message = "Bienvenue ! Pour commencer, veuillez indiquer le pseudo du garage avec lequel vous souhaitez prendre rendez-vous :\n\n"
-    message += format_garages_list(garages)
-    print(f"[DEBUG] Message à envoyer:\n{message}")
-    send_message(sender, message)
 
 # === RUN APP ===
 if __name__ == '__main__':
