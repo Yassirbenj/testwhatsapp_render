@@ -283,7 +283,7 @@ def webhook():
                             print("[DEBUG] Commande de réinitialisation détectée")
                             if sender in user_data:
                                 del user_data[sender]
-                            send_garage_selection_message(sender)
+                            send_initial_garage_message(sender)
                             return "OK", 200
 
                         if sender not in user_data:
@@ -295,7 +295,7 @@ def webhook():
                                 'data': {},
                                 'last_activity': datetime.now()
                             }
-                            send_garage_selection_message(sender)
+                            send_initial_garage_message(sender)
                             return "OK", 200
 
                         # Mettre à jour le timestamp de dernière activité
