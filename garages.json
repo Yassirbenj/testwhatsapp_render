@@ -7,7 +7,6 @@
             "city": "Paris",
             "pseudo": "auto_plus",
             "calendar_id": "garage1@gmail.com",
-            "process_id": "1",
             "credentials": {
                 "calendar": "credentials/garage1_calendar.json",
                 "sheets": "credentials/garage1_sheets.json"
@@ -32,7 +31,6 @@
             "city": "Lyon",
             "pseudo": "meca_express",
             "calendar_id": "garage2@gmail.com",
-            "process_id": "2",
             "credentials": {
                 "calendar": "credentials/garage2_calendar.json",
                 "sheets": "credentials/garage2_sheets.json"

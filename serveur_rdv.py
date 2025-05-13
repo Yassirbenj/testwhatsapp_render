@@ -295,7 +295,7 @@ def webhook():
                                 'data': {},
                                 'last_activity': datetime.now()
                             }
-                            send_initial_garage_message(sender)
+                            send_garage_selection_message(sender)
                             return "OK", 200
 
                         # Mettre à jour le timestamp de dernière activité
