@@ -295,7 +295,7 @@ def webhook():
                                 'data': {},
                                 'last_activity': datetime.now()
                             }
-                            send_garage_selection_message(sender)
+                            send_initial_garage_message(sender)
                             return "OK", 200
 
                         # Mettre à jour le timestamp de dernière activité
@@ -1522,15 +1522,15 @@ def handle_other_process(sender, state):
     user_data[sender]['state'] = 'final'
     return "OK", 200
 
-def send_garage_selection_message(sender):
+def send_initial_garage_message(sender):
     """Envoie le message initial demandant le pseudo du garage"""
     print(f"\n[DEBUG] Envoi du message initial de sélection de garage à {sender}")
     message = "Bienvenue ! Pour commencer, veuillez indiquer le pseudo du garage avec lequel vous souhaitez prendre rendez-vous."
     print(f"[DEBUG] Message à envoyer:\n{message}")
     send_message(sender, message)
 
-def send_garages_list(sender):
-    """Envoie la liste complète des garages disponibles"""
+def send_garage_selection_message(sender):
+    """Envoie la liste des garages disponibles"""
     print(f"\n[DEBUG] Envoi de la liste des garages à {sender}")
     garages = load_garages()
     message = "Voici la liste des garages disponibles :\n\n"
@@ -1600,7 +1600,10 @@ def handle_garage_selection(sender, text):
     else:
         print("[DEBUG] Garage non trouvé, envoi du message d'erreur et de la liste")
         send_message(sender, "Désolé, je ne trouve pas ce garage. Voici la liste des garages disponibles :")
-        send_garages_list(sender)
+        send_garage_selection_message(sender)
+        # Réinitialiser l'état de l'utilisateur pour qu'il puisse réessayer
+        if sender in user_data:
+            user_data[sender]['state'] = 'initial'
         return None
 
 def load_garages():
