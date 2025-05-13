@@ -1522,6 +1522,22 @@ def handle_other_process(sender, state):
     user_data[sender]['state'] = 'final'
     return "OK", 200
 
+def send_garage_selection_message(sender):
+    """Envoie le message initial demandant le pseudo du garage"""
+    print(f"\n[DEBUG] Envoi du message initial de sélection de garage à {sender}")
+    message = "Bienvenue ! Pour commencer, veuillez indiquer le pseudo du garage avec lequel vous souhaitez prendre rendez-vous."
+    print(f"[DEBUG] Message à envoyer:\n{message}")
+    send_message(sender, message)
+
+def send_garages_list(sender):
+    """Envoie la liste complète des garages disponibles"""
+    print(f"\n[DEBUG] Envoi de la liste des garages à {sender}")
+    garages = load_garages()
+    message = "Voici la liste des garages disponibles :\n\n"
+    message += format_garages_list(garages)
+    print(f"[DEBUG] Message à envoyer:\n{message}")
+    send_message(sender, message)
+
 def handle_garage_selection(sender, text):
     """Gère la sélection du garage par l'utilisateur et retourne les informations du garage"""
     print(f"\n[DEBUG] Gestion de la sélection du garage:")
@@ -1582,9 +1598,9 @@ def handle_garage_selection(sender, text):
         print(f"[DEBUG] Réponse envoi confirmation: {response.status_code} - {response.json()}")
         return garage
     else:
-        print("[DEBUG] Garage non trouvé, envoi du message d'erreur")
-        send_message(sender, "Désolé, je ne trouve pas ce garage. Veuillez réessayer avec un pseudo valide.")
-        send_garage_selection_message(sender)
+        print("[DEBUG] Garage non trouvé, envoi du message d'erreur et de la liste")
+        send_message(sender, "Désolé, je ne trouve pas ce garage. Voici la liste des garages disponibles :")
+        send_garages_list(sender)
         return None
 
 def load_garages():
@@ -1619,15 +1635,6 @@ def get_garage_by_pseudo(pseudo):
             return garage
     print("[DEBUG] Aucun garage trouvé avec ce pseudo")
     return None
-
-def send_garage_selection_message(sender):
-    """Envoie le message de sélection du garage"""
-    print(f"\n[DEBUG] Envoi du message de sélection de garage à {sender}")
-    garages = load_garages()
-    message = "Bienvenue ! Pour commencer, veuillez indiquer le pseudo du garage avec lequel vous souhaitez prendre rendez-vous :\n\n"
-    message += format_garages_list(garages)
-    print(f"[DEBUG] Message à envoyer:\n{message}")
-    send_message(sender, message)
 
 # === RUN APP ===
 if __name__ == '__main__':
