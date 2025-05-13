@@ -452,6 +452,12 @@ def send_step_message(to_number, step_index, process):
     message = step['message']
     expected_answers = step['expected_answers']
 
+    # Remplacer le nom du garage si présent
+    if '{{garage_name}}' in message and to_number in user_data and 'selected_garage' in user_data[to_number]:
+        garage_name = user_data[to_number]['selected_garage']['name']
+        message = message.replace('{{garage_name}}', garage_name)
+        print(f"[DEBUG] Nom du garage remplacé: {garage_name}")
+
     # Gérer les données dynamiques si présentes
     if 'dynamic_data' in step:
         if 'services_file' in step['dynamic_data']:
