@@ -178,23 +178,27 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
         specific_calendar_service = calendar_info['service']
         specific_calendar_id = calendar_info['calendar_id']
 
-        # Récupérer l'heure de fermeture et les heures de travail pour ce garage
+        # Récupérer les paramètres du garage
         garages = load_garages()
         closing_hour = 18  # Valeur par défaut
         working_hours = [9, 10, 11, 14, 15, 16, 17]  # Valeurs par défaut
+        max_appointments_per_slot = 1  # Valeur par défaut
 
         for garage in garages['garages']:
             if garage['id'] == garage_id:
                 closing_hour = garage.get('closing_hour', 18)  # Utiliser 18 si non spécifié
                 working_hours = garage.get('working_hours', working_hours)  # Utiliser les heures par défaut si non spécifiées
+                max_appointments_per_slot = garage.get('max_appointments_per_slot', 1)  # Utiliser 1 si non spécifié
                 print(f"[DEBUG] Heure de fermeture pour {garage_id}: {closing_hour}h")
                 print(f"[DEBUG] Heures de travail pour {garage_id}: {working_hours}")
+                print(f"[DEBUG] Nombre max de RDV par créneau pour {garage_id}: {max_appointments_per_slot}")
                 break
     else:
         specific_calendar_service = calendar_service
         specific_calendar_id = CALENDAR_ID
         closing_hour = 18  # Valeur par défaut si pas de garage spécifié
         working_hours = [9, 10, 11, 14, 15, 16, 17]  # Valeurs par défaut
+        max_appointments_per_slot = 1  # Valeur par défaut
 
     # Vérifier d'abord si le calendrier existe
     try:
@@ -229,18 +233,80 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
     time_min = timezone.localize(datetime.combine(current_date, time.min)).astimezone(pytz.utc)
     time_max = timezone.localize(datetime.combine(end_date, time.max)).astimezone(pytz.utc)
 
-    body = {
-        "timeMin": time_min.isoformat(),
-        "timeMax": time_max.isoformat(),
-        "items": [{"id": specific_calendar_id}]
-    }
-
+    # Récupérer tous les événements dans l'intervalle de temps
     try:
-        # Tentative d'exécution de la requête freebusy
-        freebusy = specific_calendar_service.freebusy().query(body=body).execute()
+        # Récupérer tous les événements dans l'intervalle
+        events_result = specific_calendar_service.events().list(
+            calendarId=specific_calendar_id,
+            timeMin=time_min.isoformat(),
+            timeMax=time_max.isoformat(),
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        events = events_result.get('items', [])
+
+        # Obtenir aussi les plages horaires occupées
+        freebusy_query = {
+            "timeMin": time_min.isoformat(),
+            "timeMax": time_max.isoformat(),
+            "items": [{"id": specific_calendar_id}]
+        }
+        freebusy = specific_calendar_service.freebusy().query(body=freebusy_query).execute()
         busy_times = freebusy['calendars'][specific_calendar_id]['busy']
+
+        # Créer un dictionnaire pour compter le nombre de rendez-vous par créneau horaire
+        slot_counts = {}  # Clé: 'YYYY-MM-DD-HH', Valeur: nombre de rendez-vous
+
+        # Compter les rendez-vous existants par créneau
+        for event in events:
+            if 'dateTime' in event['start']:
+                event_start = datetime.fromisoformat(event['start']['dateTime'].replace('Z', '+00:00'))
+                event_start_local = event_start.astimezone(timezone)
+                # Créer une clé représentant le créneau horaire (jour-heure)
+                slot_key = event_start_local.strftime('%Y-%m-%d-%H')
+
+                # Incrémenter le compteur pour ce créneau
+                if slot_key in slot_counts:
+                    slot_counts[slot_key] += 1
+                else:
+                    slot_counts[slot_key] = 1
+
+        print(f"[DEBUG] Nombre de rendez-vous par créneau: {slot_counts}")
+
+        # Parcourir les jours et les heures pour trouver des créneaux disponibles
+        while current_date <= end_date:
+            for hour in possible_hours:
+                local_start = timezone.localize(datetime.combine(current_date, time(hour, 0)))
+                local_end = local_start + timedelta(hours=duration_hours)
+
+                # Créer la clé pour ce créneau
+                slot_key = local_start.strftime('%Y-%m-%d-%H')
+
+                # Obtenir le nombre actuel de rendez-vous pour ce créneau
+                current_count = slot_counts.get(slot_key, 0)
+
+                # Vérifier si le créneau est dans le futur et s'il y a de la place
+                if local_start > datetime.now(timezone) and current_count < max_appointments_per_slot:
+                    # Vérifier aussi si le créneau n'est pas occupé (par des événements de type blocage)
+                    start_utc = local_start.astimezone(pytz.utc).isoformat()
+                    end_utc = local_end.astimezone(pytz.utc).isoformat()
+
+                    overlapping = any(
+                        (busy['start'] <= start_utc < busy['end']) or
+                        (busy['start'] < end_utc <= busy['end']) or
+                        (start_utc <= busy['start'] and end_utc >= busy['end'])
+                        for busy in busy_times
+                    )
+
+                    if not overlapping:
+                        slots.append((local_start, local_end))
+
+            current_date += timedelta(days=1)
+
+        return slots[:3]  # Limiter à 3 créneaux
+
     except Exception as e:
-        print(f"[ERROR] Erreur lors de la requête freebusy: {str(e)}")
+        print(f"[ERROR] Erreur lors de la recherche d'événements: {str(e)}")
         # En cas d'erreur, retourner des créneaux disponibles à des heures standard
         print("[INFO] Génération de créneaux standard en raison de l'erreur de calendrier")
 
@@ -260,29 +326,6 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
 
         # Limiter à 3 créneaux maximum
         return slots[:3]
-
-    # Si tout va bien, continuer avec le processus normal
-    while current_date <= end_date:
-        for hour in possible_hours:
-            local_start = timezone.localize(datetime.combine(current_date, time(hour, 0)))
-            local_end = local_start + timedelta(hours=duration_hours)
-
-            start_utc = local_start.astimezone(pytz.utc).isoformat()
-            end_utc = local_end.astimezone(pytz.utc).isoformat()
-
-            overlapping = any(
-                (busy['start'] <= start_utc < busy['end']) or
-                (busy['start'] < end_utc <= busy['end']) or
-                (start_utc <= busy['start'] and end_utc >= busy['end'])
-                for busy in busy_times
-            )
-
-            if not overlapping and local_start > datetime.now(timezone):
-                slots.append((local_start, local_end))
-
-        current_date += timedelta(days=1)
-
-    return slots[:3]
 
 # Fonction créer rendez-vous
 def create_appointment(sender, slot_start, slot_end, service_name, service_duration):
