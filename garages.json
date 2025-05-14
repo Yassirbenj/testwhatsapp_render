@@ -8,6 +8,7 @@
             "pseudo": "auto_plus",
             "calendar_id": "benjilaliyassir@gmail.com",
             "closing_hour": 20,
+            "working_hours": [9, 10, 11, 15, 16, 17, 18, 19],
             "credentials": {
                 "calendar": "credentials/garage1_calendar.json",
                 "sheets": "credentials/garage1_sheets.json"
@@ -33,6 +34,7 @@
             "pseudo": "meca_express",
             "calendar_id": "garage2@gmail.com",
             "closing_hour": 19,
+            "working_hours": [8, 9, 10, 11, 12, 14, 15, 16, 17, 18],
             "credentials": {
                 "calendar": "credentials/garage2_calendar.json",
                 "sheets": "credentials/garage2_sheets.json"
