@@ -6,7 +6,7 @@
             "phone": "+33600000000",
             "city": "Paris",
             "pseudo": "auto_plus",
-            "calendar_id": "garage1@gmail.com",
+            "calendar_id": "benjilaliyassir@gmail.com",
             "credentials": {
                 "calendar": "credentials/garage1_calendar.json",
                 "sheets": "credentials/garage1_sheets.json"
