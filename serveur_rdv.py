@@ -432,6 +432,19 @@ def load_services():
         print(f"Erreur lors du chargement des services: {str(e)}")
         return {"services": []}
 
+def get_garage_services(garage_id):
+    """Récupère les services d'un garage spécifique depuis garages.json"""
+    try:
+        garages = load_garages()
+        for garage in garages['garages']:
+            if garage['id'] == garage_id:
+                return {"services": garage['services']}
+        # Si le garage n'est pas trouvé, utiliser les services par défaut
+        return load_services()
+    except Exception as e:
+        print(f"Erreur lors du chargement des services pour le garage {garage_id}: {str(e)}")
+        return load_services()
+
 def format_services_list(services):
     """Formate la liste des services pour l'affichage"""
     formatted_list = []
@@ -460,8 +473,16 @@ def send_step_message(to_number, step_index, process):
 
     # Gérer les données dynamiques si présentes
     if 'dynamic_data' in step:
-        if 'services_file' in step['dynamic_data']:
-            services = load_services()
+        # Nouvelle structure pour les services
+        if 'services' in step['dynamic_data'] or 'services_file' in step['dynamic_data']:
+            # Récupérer les services du garage sélectionné
+            if to_number in user_data and 'selected_garage' in user_data[to_number]:
+                garage_id = user_data[to_number]['selected_garage']['id']
+                services = get_garage_services(garage_id)
+            else:
+                # Si aucun garage n'est sélectionné, utiliser les services par défaut
+                services = load_services()
+
             # Remplacer les placeholders dans le message
             message = message.replace('{{services_list}}', format_services_list(services))
             # Remplacer les placeholders dans les réponses attendues
@@ -590,12 +611,19 @@ def send_message(to_number, message):
     if "Voici les créneaux disponibles" in message:
         service_id = user_data.get('test_user', {}).get('data', {}).get('Service souhaité')
         try:
-            with open('services.json', 'r') as f:
-                services = json.load(f)
-                for service in services['services']:
-                    if service['id'] == service_id:
-                        print(f"\n[Info] Durée du service '{service['name']}': {service['duration']} minutes")
-                        break
+            # Utiliser les services du garage sélectionné
+            if 'test_user' in user_data and 'selected_garage' in user_data['test_user']:
+                garage_id = user_data['test_user']['selected_garage']['id']
+                services = get_garage_services(garage_id)
+            else:
+                # Fallback aux services globaux
+                with open('services.json', 'r') as f:
+                    services = json.load(f)
+
+            for service in services['services']:
+                if service['id'] == service_id:
+                    print(f"\n[Info] Durée du service '{service['name']}': {service['duration']} minutes")
+                    break
         except Exception as e:
             print(f"Erreur lors du chargement des services: {e}")
 
@@ -1362,19 +1390,30 @@ def handle_creation_process(sender, state, text, message):
 
         # Récupérer les informations du service
         service_id = user_data[sender]['data'].get('Service souhaité')
-        with open('services.json', 'r') as f:
-            services = json.load(f)
-            for service in services['services']:
-                if service['id'] == service_id:
-                    # Stocker les informations du service dans user_data
-                    user_data[sender]['service_info'] = {
-                        'name': service['name'],
-                        'duration': int(service['duration'])
-                    }
-                    break
+
+        # Utiliser les services du garage sélectionné
+        if 'selected_garage' in user_data[sender]:
+            garage_id = user_data[sender]['selected_garage']['id']
+            services = get_garage_services(garage_id)
+        else:
+            # Fallback aux services globaux
+            with open('services.json', 'r') as f:
+                services = json.load(f)
+
+        # Trouver le service correspondant
+        service_info = None
+        for service in services['services']:
+            if service['id'] == service_id:
+                # Stocker les informations du service dans user_data
+                user_data[sender]['service_info'] = {
+                    'name': service['name'],
+                    'duration': int(service['duration'])
+                }
+                service_info = user_data[sender]['service_info']
+                break
 
         # Vérifier que nous avons bien trouvé le service
-        if user_data[sender]['service_info'] is None:
+        if service_info is None:
             print(f"Service non trouvé pour l'ID: {service_id}")
             send_message(sender, "Désolé, une erreur est survenue. Veuillez réessayer.")
             return "OK", 200

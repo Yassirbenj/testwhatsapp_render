@@ -21,7 +21,7 @@
     "next_step": 3,
     "save_as": "الخدمة المطلوبة",
     "dynamic_data": {
-      "services_file": "services.json"
+      "services": true
     }
   },
   {
