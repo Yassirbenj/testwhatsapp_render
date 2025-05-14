@@ -1391,11 +1391,10 @@ def handle_final_response(sender, text):
             'state': 'initial',
             'current_step': 0,
             'data': {},
-            'process': process_rdv,
             'last_activity': datetime.now()
         }
-        # Envoyer le premier message
-        send_step_message(sender, 0, process_rdv)
+        # Envoyer le message de sélection de garage plutôt que le message initial du processus
+        send_initial_garage_message(sender)
     elif text == "no_new_request":
         print("[DEBUG] Fin de conversation détectée")
         # Effacer la conversation
