@@ -78,12 +78,78 @@ CALENDAR_ID = 'benjilaliyassir@gmail.com'
 TIMEZONE = 'Africa/Casablanca'
 print(calendar_service.calendarList().list().execute())
 print(drive_service.files().list().execute())
+
+# Initialiser un cache pour les services calendar par garage
+garage_calendar_services = {}
+
+def get_garage_calendar_service(garage_id):
+    """Obtient le service calendar pour un garage spécifique"""
+    global garage_calendar_services
+
+    # Si le service a déjà été initialisé, le retourner
+    if garage_id in garage_calendar_services:
+        return garage_calendar_services[garage_id]
+
+    try:
+        # Récupérer les informations du garage
+        garages = load_garages()
+        target_garage = None
+        for garage in garages['garages']:
+            if garage['id'] == garage_id:
+                target_garage = garage
+                break
+
+        if not target_garage:
+            print(f"[ERROR] Garage non trouvé pour l'ID: {garage_id}")
+            return {'service': calendar_service, 'calendar_id': CALENDAR_ID}  # Retourner le service par défaut
+
+        # Récupérer les credentials du .env ou des variables d'environnement
+        env_credential_key = f"CREDENTIALS_FILE_CALENDAR_{garage_id.upper()}"
+        credentials_path = os.getenv(env_credential_key, CREDENTIALS_FILE_CALENDAR)
+
+        print(f"[DEBUG] Utilisation des credentials à partir de {env_credential_key}: {credentials_path}")
+
+        # Récupérer le calendar_id
+        calendar_id = target_garage.get('calendar_id', CALENDAR_ID)
+
+        # Si les credentials existent
+        if os.path.exists(credentials_path):
+            # Initialiser le service avec les credentials spécifiques du garage
+            credentials = service_account.Credentials.from_service_account_file(
+                credentials_path, scopes=SCOPES
+            )
+            specific_service = build('calendar', 'v3', credentials=credentials)
+
+            # Stocker dans le cache
+            garage_calendar_services[garage_id] = {
+                'service': specific_service,
+                'calendar_id': calendar_id
+            }
+
+            print(f"[INFO] Service calendar initialisé pour le garage {garage_id} avec calendar_id {calendar_id}")
+            return garage_calendar_services[garage_id]
+        else:
+            print(f"[WARNING] Credentials non trouvés pour le garage {garage_id} (path: {credentials_path})")
+            # Créer une entrée dans le cache avec le service par défaut
+            garage_calendar_services[garage_id] = {
+                'service': calendar_service,
+                'calendar_id': calendar_id
+            }
+            return garage_calendar_services[garage_id]
+
+    except Exception as e:
+        print(f"[ERROR] Erreur lors de l'initialisation du service calendar pour le garage {garage_id}: {str(e)}")
+        # Retourner le service par défaut
+        return {'service': calendar_service, 'calendar_id': CALENDAR_ID}
+
 # Fonction de recherche de créneaux
-def find_available_slots(start_date, service_duration, num_days=5):
+def find_available_slots(start_date, service_duration, num_days=5, garage_id=None):
     print(f"\n[DEBUG] Recherche de créneaux disponibles:")
     print(f"- Date de début: {start_date}")
     print(f"- Durée du service: {service_duration} minutes")
     print(f"- Nombre de jours: {num_days}")
+    print(f"- Garage ID: {garage_id}")
+
     # En mode test, retourner des créneaux fictifs
     if os.getenv('TEST_MODE') == 'True':
         timezone = pytz.timezone(TIMEZONE)
@@ -102,9 +168,18 @@ def find_available_slots(start_date, service_duration, num_days=5):
 
         return slots
 
-    # Code original pour le mode production
+    # Code pour le mode production
     timezone = pytz.timezone(TIMEZONE)
     slots = []
+
+    # Récupérer le service calendar et l'ID du calendrier pour ce garage
+    if garage_id:
+        calendar_info = get_garage_calendar_service(garage_id)
+        specific_calendar_service = calendar_info['service']
+        specific_calendar_id = calendar_info['calendar_id']
+    else:
+        specific_calendar_service = calendar_service
+        specific_calendar_id = CALENDAR_ID
 
     # Convertir la durée en heures (arrondi au supérieur)
     duration_hours = (service_duration + 59) // 60
@@ -125,11 +200,11 @@ def find_available_slots(start_date, service_duration, num_days=5):
     body = {
         "timeMin": time_min.isoformat(),
         "timeMax": time_max.isoformat(),
-        "items": [{"id": CALENDAR_ID}]
+        "items": [{"id": specific_calendar_id}]
     }
 
-    freebusy = calendar_service.freebusy().query(body=body).execute()
-    busy_times = freebusy['calendars'][CALENDAR_ID]['busy']
+    freebusy = specific_calendar_service.freebusy().query(body=body).execute()
+    busy_times = freebusy['calendars'][specific_calendar_id]['busy']
 
     while current_date <= end_date:
         for hour in possible_hours:
@@ -161,6 +236,13 @@ def create_appointment(sender, slot_start, slot_end, service_name, service_durat
     print(f"- Fin: {slot_end}")
     print(f"- Service: {service_name}")
     print(f"- Durée: {service_duration} minutes")
+
+    # Récupérer l'ID du garage sélectionné
+    garage_id = None
+    if sender in user_data and 'selected_garage' in user_data[sender]:
+        garage_id = user_data[sender]['selected_garage']['id']
+        print(f"- Garage ID: {garage_id}")
+
     # En mode test, simuler la création d'un rendez-vous
     if os.getenv('TEST_MODE') == 'True':
         print(f"\n[Création de rendez-vous simulée]")
@@ -170,7 +252,7 @@ def create_appointment(sender, slot_start, slot_end, service_name, service_durat
         print(f"Client: {user_data[sender]['data'].get('Nom complet', 'Client')}")
         return "https://calendar.google.com/mock-link"
 
-    # Code original pour le mode production
+    # Code pour le mode production
     user_info = user_data[sender]['data']
     client_name = user_info.get('Nom complet') or user_info.get('Nom') or 'Client'
     modele = user_info.get('Modèle véhicule', '')
@@ -194,7 +276,16 @@ def create_appointment(sender, slot_start, slot_end, service_name, service_durat
         }
     }
 
-    created_event = calendar_service.events().insert(calendarId=CALENDAR_ID, body=event).execute()
+    # Utiliser le service et le calendar_id spécifiques au garage
+    if garage_id:
+        calendar_info = get_garage_calendar_service(garage_id)
+        specific_calendar_service = calendar_info['service']
+        specific_calendar_id = calendar_info['calendar_id']
+    else:
+        specific_calendar_service = calendar_service
+        specific_calendar_id = CALENDAR_ID
+
+    created_event = specific_calendar_service.events().insert(calendarId=specific_calendar_id, body=event).execute()
     return created_event.get('htmlLink')
 
 # Charger les scénarios depuis les fichiers process
@@ -765,6 +856,13 @@ def test_process_local():
 def get_future_appointments(sender):
     print(f"\n[DEBUG] Recherche des rendez-vous futurs:")
     print(f"- Client: {sender}")
+
+    # Récupérer l'ID du garage sélectionné
+    garage_id = None
+    if sender in user_data and 'selected_garage' in user_data[sender]:
+        garage_id = user_data[sender]['selected_garage']['id']
+        print(f"- Garage ID: {garage_id}")
+
     if os.getenv('TEST_MODE') == 'True':
         # En mode test, retourner des rendez-vous fictifs
         today = datetime.now()
@@ -785,9 +883,18 @@ def get_future_appointments(sender):
     timezone = pytz.timezone(TIMEZONE)
     now = datetime.now(timezone)
 
+    # Utiliser le service et le calendar_id spécifiques au garage
+    if garage_id:
+        calendar_info = get_garage_calendar_service(garage_id)
+        specific_calendar_service = calendar_info['service']
+        specific_calendar_id = calendar_info['calendar_id']
+    else:
+        specific_calendar_service = calendar_service
+        specific_calendar_id = CALENDAR_ID
+
     # Rechercher les événements futurs
-    events_result = calendar_service.events().list(
-        calendarId=CALENDAR_ID,
+    events_result = specific_calendar_service.events().list(
+        calendarId=specific_calendar_id,
         timeMin=now.isoformat(),
         maxResults=10,
         singleEvents=True,
@@ -933,15 +1040,32 @@ def get_calendar_service():
         print(f"Erreur lors de l'initialisation du service Calendar: {e}")
         return None
 
-def cancel_appointment(appointment_id):
+def cancel_appointment(appointment_id, sender=None):
     print(f"\n[DEBUG] Tentative d'annulation du rendez-vous:")
     print(f"- ID du rendez-vous: {appointment_id}")
+
+    # Récupérer l'ID du garage sélectionné si sender est fourni
+    garage_id = None
+    if sender and sender in user_data and 'selected_garage' in user_data[sender]:
+        garage_id = user_data[sender]['selected_garage']['id']
+        print(f"- Garage ID: {garage_id}")
+
     try:
-        service = get_calendar_service()
-        print(f"[DEBUG] Service Calendar: {service}")
-        if service:
-            service.events().delete(
-                calendarId=CALENDAR_ID,
+        # Utiliser le service et le calendar_id spécifiques au garage
+        if garage_id:
+            calendar_info = get_garage_calendar_service(garage_id)
+            specific_calendar_service = calendar_info['service']
+            specific_calendar_id = calendar_info['calendar_id']
+        else:
+            specific_calendar_service = calendar_service
+            specific_calendar_id = CALENDAR_ID
+
+        print(f"[DEBUG] Service Calendar: {specific_calendar_service}")
+        print(f"[DEBUG] Calendar ID: {specific_calendar_id}")
+
+        if specific_calendar_service:
+            specific_calendar_service.events().delete(
+                calendarId=specific_calendar_id,
                 eventId=appointment_id
             ).execute()
             return True
@@ -1299,18 +1423,30 @@ def handle_creation_process(sender, state, text, message):
             send_date_buttons(sender)  # Renvoyer les boutons
             return "OK", 200
 
+        # Récupérer l'ID du garage sélectionné
+        garage_id = None
+        if 'selected_garage' in user_data[sender]:
+            garage_id = user_data[sender]['selected_garage']['id']
+
+        # Récupérer les informations du service
         service_id = user_data[sender]['data'].get('Service souhaité')
+
+        # Utiliser les services du garage sélectionné
+        if garage_id:
+            services = get_garage_services(garage_id)
+        else:
+            # Fallback aux services globaux
+            with open('services.json', 'r') as f:
+                services = json.load(f)
+
+        # Trouver le service correspondant
         service_duration = None
         service_name = None
-
-        # Charger les informations du service
-        with open('services.json', 'r') as f:
-            services = json.load(f)
-            for service in services['services']:
-                if service['id'] == service_id:
-                    service_duration = int(service['duration'])
-                    service_name = service['name']
-                    break
+        for service in services['services']:
+            if service['id'] == service_id:
+                service_duration = int(service['duration'])
+                service_name = service['name']
+                break
 
         # Vérifier que nous avons bien trouvé le service
         if service_duration is None or service_name is None:
@@ -1318,7 +1454,7 @@ def handle_creation_process(sender, state, text, message):
             send_message(sender, "Désolé, une erreur est survenue. Veuillez réessayer.")
             return "OK", 200
 
-        slots = find_available_slots(start_date, service_duration)
+        slots = find_available_slots(start_date, service_duration, garage_id=garage_id)
         if not slots:
             send_message(sender, "Désolé, aucun créneau n'est disponible à partir de cette date. Merci d'en proposer une autre.")
             send_date_buttons(sender)  # Renvoyer les boutons
@@ -1496,7 +1632,7 @@ def handle_cancellation_process(sender, state, text, message):
                 # L'utilisateur a confirmé l'annulation
                 appointment_id = user_data[sender]["pending_cancel_id"]
                 print(f"[DEBUG] Appointment id is {appointment_id}")
-                if cancel_appointment(appointment_id):
+                if cancel_appointment(appointment_id, sender):
                     # Stocker les informations de l'annulation dans user_data
                     user_data[sender]['data'].update({
                         'Appointment ID': appointment_id,
