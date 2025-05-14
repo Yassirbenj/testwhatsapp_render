@@ -188,10 +188,10 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
             if garage['id'] == garage_id:
                 closing_hour = garage.get('closing_hour', 18)  # Utiliser 18 si non spécifié
                 working_hours = garage.get('working_hours', working_hours)  # Utiliser les heures par défaut si non spécifiées
-                max_appointments_per_slot = garage.get('max_appointments_per_slot', 1)  # Utiliser 1 si non spécifié
+                max_appointments_per_slot = int(garage.get('max_appointments_per_slot', 1))  # Utiliser 1 si non spécifié et convertir en int
                 print(f"[DEBUG] Heure de fermeture pour {garage_id}: {closing_hour}h")
                 print(f"[DEBUG] Heures de travail pour {garage_id}: {working_hours}")
-                print(f"[DEBUG] Nombre max de RDV par créneau pour {garage_id}: {max_appointments_per_slot}")
+                print(f"[DEBUG] Nombre max de RDV par créneau pour {garage_id}: {max_appointments_per_slot} (type: {type(max_appointments_per_slot)})")
                 break
     else:
         specific_calendar_service = calendar_service
@@ -282,7 +282,7 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
         slots_rejected_count = 0
         slots_rejected_overlap = 0
 
-        while current_date <= end_date:
+        while current_date < end_date:
             for hour in possible_hours:
                 local_start = timezone.localize(datetime.combine(current_date, time(hour, 0)))
                 local_end = local_start + timedelta(hours=duration_hours)
@@ -294,9 +294,16 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
                 # Obtenir le nombre actuel de rendez-vous pour ce créneau
                 current_count = slot_counts.get(slot_key, 0)
 
-                # Vérifier si le créneau est dans le futur et s'il y a de la place
+                # Vérifier si le créneau est dans le futur
                 if local_start > datetime.now(timezone):
-                    if current_count < max_appointments_per_slot:
+                    # Vérifier explicitement la condition
+                    is_below_max = current_count < max_appointments_per_slot
+
+                    print(f"[DEBUG] Vérification du créneau {local_start.strftime('%Y-%m-%d %H:%M')}")
+                    print(f"[DEBUG] Compteur actuel: {current_count}, Max autorisé: {max_appointments_per_slot}, Disponible: {is_below_max}")
+
+                    # N'autoriser le créneau que si le nombre de rendez-vous est inférieur au maximum
+                    if is_below_max:
                         # Vérifier aussi si le créneau n'est pas occupé (par des événements de type blocage)
                         start_utc = local_start.astimezone(pytz.utc).isoformat()
                         end_utc = local_end.astimezone(pytz.utc).isoformat()
@@ -349,8 +356,8 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
                     if slot_start > datetime.now(timezone):
                         slots.append((slot_start, slot_end))
 
-        # Limiter à 3 créneaux maximum
-        return slots[:3]
+    # Limiter à 3 créneaux maximum
+    return slots[:3]
 
 # Fonction créer rendez-vous
 def create_appointment(sender, slot_start, slot_end, service_name, service_duration):
@@ -1941,6 +1948,43 @@ def get_garage_by_pseudo(pseudo):
     print("[DEBUG] Aucun garage trouvé avec ce pseudo")
     return None
 
+def test_max_appointments_per_slot():
+    """Test de la fonctionnalité de nombre maximal de rendez-vous par créneau"""
+    print("\n=== Test de la limitation du nombre de rendez-vous par créneau ===")
+
+    # Paramètres de test
+    start_date = datetime.now().date()
+    service_duration = 60  # 60 minutes
+    garage_id = "garage1"  # Utiliser le garage1 qui a max_appointments_per_slot = 2
+
+    # Charger les paramètres du garage
+    garages = load_garages()
+    garage = None
+    for g in garages['garages']:
+        if g['id'] == garage_id:
+            garage = g
+            break
+
+    if not garage:
+        print("[ERROR] Garage de test non trouvé")
+        return
+
+    max_appointments = garage.get('max_appointments_per_slot', 1)
+    print(f"[INFO] Garage de test: {garage['name']}")
+    print(f"[INFO] Nombre maximal de rendez-vous par créneau: {max_appointments}")
+    print(f"[INFO] Type de max_appointments_per_slot: {type(max_appointments)}")
+
+    # Tester manuellement la comparaison
+    for count in range(0, 4):
+        is_available = count < max_appointments
+        print(f"[TEST] {count} < {max_appointments} = {is_available}")
+
+        # Tester avec conversion explicite en int
+        is_available_int = int(count) < int(max_appointments)
+        print(f"[TEST] int({count}) < int({max_appointments}) = {is_available_int}")
+
+    print("\n=== Fin du test ===")
+
 # === RUN APP ===
 if __name__ == '__main__':
     import sys
@@ -1952,5 +1996,11 @@ if __name__ == '__main__':
         elif sys.argv[1] == "--test-create":
             print("Lancement du test de création...")
             test_conversation()
+        elif sys.argv[1] == "--test-max-slots":
+            print("Lancement du test de limitation des rendez-vous par créneau...")
+            try:
+                test_max_appointments_per_slot()
+            except Exception as e:
+                print(f"[ERROR] Exception lors du test: {str(e)}")
     else:
         app.run(host='0.0.0.0', port=5000)
