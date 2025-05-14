@@ -254,6 +254,68 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
         freebusy = specific_calendar_service.freebusy().query(body=freebusy_query).execute()
         busy_times = freebusy['calendars'][specific_calendar_id]['busy']
 
+        # Nous devons déterminer quels événements sont des blocages (non-RDV) et lesquels sont des RDV normaux
+        blocking_events = {}
+        for event in events:
+            if 'dateTime' in event['start'] and 'dateTime' in event['end']:
+                event_start = event['start']['dateTime']
+                event_end = event['end']['dateTime']
+                summary = event.get('summary', '').lower()
+
+                # On considère comme "blocage" les événements qui ne sont pas des RDV Garage
+                # ou qui contiennent des mots-clés spécifiques
+                is_rdv_garage = summary.startswith('rdv garage')
+                is_blocking_keyword = any(
+                    keyword in summary.lower() for keyword in ['bloqué', 'blocage', 'indispo', 'fermeture']
+                )
+
+                # Un événement est un blocage s'il n'est PAS un RDV Garage ET qu'il contient un mot-clé de blocage
+                # OU si c'est explicitement un blocage (avec un mot-clé)
+                is_blocking = (not is_rdv_garage and not "rendez-vous" in summary.lower()) or is_blocking_keyword
+
+                print(f"[DEBUG] Analyse de l'événement: {summary}")
+                print(f"[DEBUG] Est un RDV Garage: {is_rdv_garage}")
+                print(f"[DEBUG] Contient mot-clé de blocage: {is_blocking_keyword}")
+                print(f"[DEBUG] Est un blocage: {is_blocking}")
+
+                if is_blocking:
+                    key = f"{event_start}_{event_end}"
+                    blocking_events[key] = True
+                    print(f"[DEBUG] Événement de blocage détecté: {summary} - {event_start} à {event_end}")
+
+        # Filtrer les busy_times pour ne garder que les événements de blocage
+        filtered_busy_times = []
+
+        print(f"[DEBUG] Busy times avant filtrage: {len(busy_times)}")
+        for busy in busy_times:
+            busy_start = busy['start']
+            busy_end = busy['end']
+            key = f"{busy_start}_{busy_end}"
+
+            # Si c'est un événement de blocage, le conserver
+            if key in blocking_events:
+                filtered_busy_times.append(busy)
+                print(f"[DEBUG] Gardé comme busy: {busy_start} à {busy_end} (événement de blocage)")
+            else:
+                # Convertir en datetime pour vérifier si c'est un créneau de RDV
+                busy_start_dt = datetime.fromisoformat(busy_start.replace('Z', '+00:00'))
+                busy_start_local = busy_start_dt.astimezone(timezone)
+                slot_key = busy_start_local.strftime('%Y-%m-%d-%H')
+
+                is_appointment_slot = slot_key in slot_counts
+
+                if is_appointment_slot:
+                    # C'est un créneau de RDV, on l'ignore car il est géré par slot_counts
+                    print(f"[DEBUG] Ignoré de busy_times: {busy_start} à {busy_end} (créneau RDV géré par compteur)")
+                else:
+                    # Ce n'est pas un créneau de RDV connu, donc on le considère comme busy
+                    filtered_busy_times.append(busy)
+                    print(f"[DEBUG] Gardé comme busy: {busy_start} à {busy_end} (non identifié)")
+
+
+        print(f"[DEBUG] Busy times après filtrage: {len(filtered_busy_times)}")
+        busy_times = filtered_busy_times
+
         # Créer un dictionnaire pour compter le nombre de rendez-vous par créneau horaire
         slot_counts = {}  # Clé: 'YYYY-MM-DD-HH', Valeur: nombre de rendez-vous
 
@@ -308,12 +370,20 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
                         start_utc = local_start.astimezone(pytz.utc).isoformat()
                         end_utc = local_end.astimezone(pytz.utc).isoformat()
 
-                        overlapping = any(
-                            (busy['start'] <= start_utc < busy['end']) or
-                            (busy['start'] < end_utc <= busy['end']) or
-                            (start_utc <= busy['start'] and end_utc >= busy['end'])
-                            for busy in busy_times
-                        )
+                        # Debug des busy_times (uniquement les événements de blocage maintenant)
+                        print(f"[DEBUG] Vérification de chevauchement pour {local_start.strftime('%Y-%m-%d %H:%M')}")
+                        has_overlap = False
+                        for busy in busy_times:
+                            cond1 = busy['start'] <= start_utc < busy['end']
+                            cond2 = busy['start'] < end_utc <= busy['end']
+                            cond3 = start_utc <= busy['start'] and end_utc >= busy['end']
+                            current_overlap = cond1 or cond2 or cond3
+                            if current_overlap:
+                                has_overlap = True
+                                print(f"[DEBUG] Chevauchement détecté: {busy['start']} à {busy['end']}")
+                                print(f"[DEBUG] Conditions: start_in_busy={cond1}, end_in_busy={cond2}, busy_in_slot={cond3}")
+
+                        overlapping = has_overlap
 
                         if not overlapping:
                             slots.append((local_start, local_end))
