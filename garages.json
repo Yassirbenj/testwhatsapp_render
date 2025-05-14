@@ -7,6 +7,7 @@
             "city": "Paris",
             "pseudo": "auto_plus",
             "calendar_id": "benjilaliyassir@gmail.com",
+            "closing_hour": 20,
             "credentials": {
                 "calendar": "credentials/garage1_calendar.json",
                 "sheets": "credentials/garage1_sheets.json"
@@ -31,6 +32,7 @@
             "city": "Lyon",
             "pseudo": "meca_express",
             "calendar_id": "garage2@gmail.com",
+            "closing_hour": 19,
             "credentials": {
                 "calendar": "credentials/garage2_calendar.json",
                 "sheets": "credentials/garage2_sheets.json"

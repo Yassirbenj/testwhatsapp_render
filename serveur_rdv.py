@@ -177,7 +177,27 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
         calendar_info = get_garage_calendar_service(garage_id)
         specific_calendar_service = calendar_info['service']
         specific_calendar_id = calendar_info['calendar_id']
+
+        # Récupérer l'heure de fermeture pour ce garage
+        garages = load_garages()
+        closing_hour = 18  # Valeur par défaut
+        for garage in garages['garages']:
+            if garage['id'] == garage_id:
+                closing_hour = garage.get('closing_hour', 18)  # Utiliser 18 si non spécifié
+                print(f"[DEBUG] Heure de fermeture pour {garage_id}: {closing_hour}h")
+                break
     else:
+        specific_calendar_service = calendar_service
+        specific_calendar_id = CALENDAR_ID
+        closing_hour = 18  # Valeur par défaut si pas de garage spécifié
+
+    # Vérifier d'abord si le calendrier existe
+    try:
+        calendar_info = specific_calendar_service.calendars().get(calendarId=specific_calendar_id).execute()
+        print(f"[INFO] Calendrier trouvé: {calendar_info.get('summary', specific_calendar_id)}")
+    except Exception as e:
+        print(f"[WARNING] Calendrier non trouvé: {specific_calendar_id}. Erreur: {str(e)}")
+        print(f"[INFO] Utilisation du calendrier par défaut: {CALENDAR_ID}")
         specific_calendar_service = calendar_service
         specific_calendar_id = CALENDAR_ID
 
@@ -187,9 +207,11 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
     # Ajuster les heures possibles en fonction de la durée
     possible_hours = []
     for hour in [9, 10, 11, 14, 15, 16, 17]:
-        # Vérifier si le créneau complet tient dans la journée
-        if hour + duration_hours <= 18:  # On s'arrête à 18h
+        # Vérifier si le créneau complet tient dans la journée en fonction de l'heure de fermeture du garage
+        if hour + duration_hours <= closing_hour:
             possible_hours.append(hour)
+
+    print(f"[DEBUG] Heures possibles selon la durée et l'heure de fermeture: {possible_hours}")
 
     current_date = start_date
     end_date = start_date + timedelta(days=num_days)
@@ -203,8 +225,28 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
         "items": [{"id": specific_calendar_id}]
     }
 
-    freebusy = specific_calendar_service.freebusy().query(body=body).execute()
-    busy_times = freebusy['calendars'][specific_calendar_id]['busy']
+    try:
+        # Tentative d'exécution de la requête freebusy
+        freebusy = specific_calendar_service.freebusy().query(body=body).execute()
+        busy_times = freebusy['calendars'][specific_calendar_id]['busy']
+    except Exception as e:
+        print(f"[ERROR] Erreur lors de la requête freebusy: {str(e)}")
+        # En cas d'erreur, retourner des créneaux disponibles à des heures standard
+        print("[INFO] Génération de créneaux standard en raison de l'erreur de calendrier")
+
+        for i in range(3):  # Proposer 3 jours à partir de la date demandée
+            day = start_date + timedelta(days=i)
+            for hour in [9, 11, 14]:  # Proposer des heures standard: 9h, 11h, 14h
+                if hour + duration_hours <= closing_hour:  # Vérifier que le service tient dans la journée selon l'heure de fermeture
+                    slot_start = timezone.localize(datetime.combine(day, time(hour, 0)))
+                    slot_end = slot_start + timedelta(hours=duration_hours)
+
+                    # Ne pas proposer de créneaux dans le passé
+                    if slot_start > datetime.now(timezone):
+                        slots.append((slot_start, slot_end))
+
+        # Limiter à 3 créneaux maximum
+        return slots[:3]
 
     while current_date <= end_date:
         for hour in possible_hours:
