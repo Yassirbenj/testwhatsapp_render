@@ -505,7 +505,7 @@ def send_step_message(to_number, step_index, process):
             buttons = []
             for answer in expected_answers:
                 # Pour les services, utiliser le nom du service comme titre
-                if 'dynamic_data' in step and 'services_file' in step['dynamic_data']:
+                if 'dynamic_data' in step and ('services' in step['dynamic_data'] or 'services_file' in step['dynamic_data']):
                     for service in services['services']:
                         if service['id'] == answer:
                             # Raccourcir le titre pour les boutons
@@ -514,7 +514,7 @@ def send_step_message(to_number, step_index, process):
                                 title = f"{service['name'][:15]}... ({service['duration']}min)"
                             break
                 else:
-                    # Pour les autres choix, utiliser le texte de la réponse
+                    # Pour les choix génériques (1, 2, 3), utiliser des libellés explicites
                     title = answer
                     if answer == '1':
                         title = 'Prendre rendez-vous'
@@ -554,7 +554,7 @@ def send_step_message(to_number, step_index, process):
 
             for answer in expected_answers:
                 # Pour les services, utiliser le nom du service comme titre
-                if 'dynamic_data' in step and 'services_file' in step['dynamic_data']:
+                if 'dynamic_data' in step and ('services' in step['dynamic_data'] or 'services_file' in step['dynamic_data']):
                     for service in services['services']:
                         if service['id'] == answer:
                             # Pour les listes, on peut utiliser des titres plus longs
@@ -567,10 +567,8 @@ def send_step_message(to_number, step_index, process):
                     if answer == '1':
                         title = 'Prendre rendez-vous'
                     elif answer == '2':
-                        title = 'Modifier un rendez-vous'
-                    elif answer == '3':
                         title = 'Annuler un rendez-vous'
-                    elif answer == '4':
+                    elif answer == '3':
                         title = 'Autres'
                     description = ""
 
