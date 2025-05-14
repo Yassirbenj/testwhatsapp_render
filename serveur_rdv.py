@@ -258,6 +258,7 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
         slot_counts = {}  # Clé: 'YYYY-MM-DD-HH', Valeur: nombre de rendez-vous
 
         # Compter les rendez-vous existants par créneau
+        print(f"[DEBUG] Nombre total d'événements trouvés sur la période: {len(events)}")
         for event in events:
             if 'dateTime' in event['start']:
                 event_start = datetime.fromisoformat(event['start']['dateTime'].replace('Z', '+00:00'))
@@ -270,10 +271,17 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
                     slot_counts[slot_key] += 1
                 else:
                     slot_counts[slot_key] = 1
+                print(f"[DEBUG] Événement trouvé: {event.get('summary', 'Sans titre')} - Début: {event_start_local.strftime('%Y-%m-%d %H:%M')} - Créneau: {slot_key}")
 
         print(f"[DEBUG] Nombre de rendez-vous par créneau: {slot_counts}")
+        print(f"[DEBUG] Nombre maximum de rendez-vous par créneau autorisé: {max_appointments_per_slot}")
 
         # Parcourir les jours et les heures pour trouver des créneaux disponibles
+        slots_checked = 0
+        slots_available = 0
+        slots_rejected_count = 0
+        slots_rejected_overlap = 0
+
         while current_date <= end_date:
             for hour in possible_hours:
                 local_start = timezone.localize(datetime.combine(current_date, time(hour, 0)))
@@ -281,27 +289,44 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
 
                 # Créer la clé pour ce créneau
                 slot_key = local_start.strftime('%Y-%m-%d-%H')
+                slots_checked += 1
 
                 # Obtenir le nombre actuel de rendez-vous pour ce créneau
                 current_count = slot_counts.get(slot_key, 0)
 
                 # Vérifier si le créneau est dans le futur et s'il y a de la place
-                if local_start > datetime.now(timezone) and current_count < max_appointments_per_slot:
-                    # Vérifier aussi si le créneau n'est pas occupé (par des événements de type blocage)
-                    start_utc = local_start.astimezone(pytz.utc).isoformat()
-                    end_utc = local_end.astimezone(pytz.utc).isoformat()
+                if local_start > datetime.now(timezone):
+                    if current_count < max_appointments_per_slot:
+                        # Vérifier aussi si le créneau n'est pas occupé (par des événements de type blocage)
+                        start_utc = local_start.astimezone(pytz.utc).isoformat()
+                        end_utc = local_end.astimezone(pytz.utc).isoformat()
 
-                    overlapping = any(
-                        (busy['start'] <= start_utc < busy['end']) or
-                        (busy['start'] < end_utc <= busy['end']) or
-                        (start_utc <= busy['start'] and end_utc >= busy['end'])
-                        for busy in busy_times
-                    )
+                        overlapping = any(
+                            (busy['start'] <= start_utc < busy['end']) or
+                            (busy['start'] < end_utc <= busy['end']) or
+                            (start_utc <= busy['start'] and end_utc >= busy['end'])
+                            for busy in busy_times
+                        )
 
-                    if not overlapping:
-                        slots.append((local_start, local_end))
+                        if not overlapping:
+                            slots.append((local_start, local_end))
+                            slots_available += 1
+                            print(f"[DEBUG] Créneau disponible trouvé: {local_start.strftime('%Y-%m-%d %H:%M')} - Compteur actuel: {current_count}/{max_appointments_per_slot}")
+                        else:
+                            slots_rejected_overlap += 1
+                            print(f"[DEBUG] Créneau rejeté (chevauchement): {local_start.strftime('%Y-%m-%d %H:%M')} - Compteur: {current_count}/{max_appointments_per_slot}")
+                    else:
+                        slots_rejected_count += 1
+                        print(f"[DEBUG] Créneau rejeté (complet): {local_start.strftime('%Y-%m-%d %H:%M')} - Compteur: {current_count}/{max_appointments_per_slot}")
 
             current_date += timedelta(days=1)
+
+        print(f"[DEBUG] Résumé de la recherche:")
+        print(f"- Créneaux vérifiés: {slots_checked}")
+        print(f"- Créneaux disponibles trouvés: {slots_available}")
+        print(f"- Créneaux rejetés (complets): {slots_rejected_count}")
+        print(f"- Créneaux rejetés (chevauchements): {slots_rejected_overlap}")
+        print(f"- Total créneaux retournés: {min(len(slots), 3)}")
 
         return slots[:3]  # Limiter à 3 créneaux
 
