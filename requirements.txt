@@ -12,3 +12,4 @@ datetime
 gunicorn
 openai>=1.0.0
 PyMuPDF>=1.23.0
+Werkzeug==2.0.3
