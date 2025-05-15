@@ -970,16 +970,30 @@ def send_date_buttons(sender):
         "Content-Type": "application/json"
     }
 
-    # Calculer les dates pour les 7 prochains jours
+    # Récupérer les jours de travail du garage sélectionné
+    working_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]  # Valeur par défaut
+    if sender in user_data and 'selected_garage' in user_data[sender]:
+        garage_id = user_data[sender]['selected_garage']['id']
+        garages = load_garages()
+        for garage in garages['garages']:
+            if garage['id'] == garage_id:
+                working_days = garage.get('working_days', working_days)
+                break
+        print(f"[DEBUG] Jours de travail pour le garage {garage_id}: {working_days}")
+
+    # Calculer les dates pour les prochains jours
     today = datetime.now()
     dates = []
-    for i in range(7):
-        date = today + timedelta(days=i)
-        dates.append(date.strftime("%Y-%m-%d"))
+    current_date = today
+    while len(dates) < 3:  # On cherche 3 dates valides
+        # Vérifier si le jour est un jour de travail
+        if current_date.strftime('%A') in working_days:
+            dates.append(current_date.strftime("%Y-%m-%d"))
+        current_date += timedelta(days=1)
 
     # Créer les boutons
     buttons = []
-    for date in dates[:3]:  # Limite à 3 boutons
+    for date in dates:  # On a déjà limité à 3 dates valides
         formatted_date = datetime.strptime(date, "%Y-%m-%d").strftime("%d/%m/%Y")
         buttons.append({
             "type": "reply",
@@ -1627,6 +1641,23 @@ def handle_creation_process(sender, state, text, message):
             else:
                 # Sinon, essayer de parser la date saisie manuellement
                 start_date = datetime.strptime(text, "%Y-%m-%d")
+
+            # Vérifier si la date est un jour de travail
+            working_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]  # Valeur par défaut
+            if 'selected_garage' in user_data[sender]:
+                garage_id = user_data[sender]['selected_garage']['id']
+                garages = load_garages()
+                for garage in garages['garages']:
+                    if garage['id'] == garage_id:
+                        working_days = garage.get('working_days', working_days)
+                        break
+                print(f"[DEBUG] Jours de travail pour le garage {garage_id}: {working_days}")
+
+            if start_date.strftime('%A') not in working_days:
+                send_message(sender, f"Désolé, le garage n'est pas ouvert le {JOURS[start_date.strftime('%A')]}. Merci de choisir un autre jour.")
+                send_date_buttons(sender)  # Renvoyer les boutons
+                return "OK", 200
+
         except Exception:
             send_message(sender, "Merci d'indiquer une date future au format JJ/MM/AAA (ex: 10/06/2025)")
             send_date_buttons(sender)  # Renvoyer les boutons
