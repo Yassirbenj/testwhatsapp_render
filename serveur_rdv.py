@@ -941,7 +941,7 @@ def send_step_message(to_number, step_index, process):
             buttons = []
             for answer in expected_answers:
                 # Pour les services, utiliser le nom du service comme titre
-                if 'dynamic_data' in step and ('services' in step['dynamic_data'] or 'services_file' in step['dynamic_data']:
+                if 'dynamic_data' in step and ('services' in step['dynamic_data'] or 'services_file' in step['dynamic_data']):
                     for service in services['services']:
                         if service['id'] == answer:
                             # Raccourcir le titre pour les boutons
@@ -990,7 +990,7 @@ def send_step_message(to_number, step_index, process):
 
             for answer in expected_answers:
                 # Pour les services, utiliser le nom du service comme titre
-                if 'dynamic_data' in step and ('services' in step['dynamic_data'] or 'services_file' in step['dynamic_data']:
+                if 'dynamic_data' in step and ('services' in step['dynamic_data'] or 'services_file' in step['dynamic_data']):
                     for service in services['services']:
                         if service['id'] == answer:
                             # Pour les listes, on peut utiliser des titres plus longs
