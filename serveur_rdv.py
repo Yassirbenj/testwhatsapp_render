@@ -13,6 +13,9 @@ import os
 from googleapiclient.http import MediaIoBaseUpload
 import io
 from llm import evaluate_cv_with_openai
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.date import DateTrigger
+import threading
 
 # Dictionnaires pour la traduction des jours et mois en français
 JOURS = {
@@ -438,6 +441,70 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
     # Limiter à 3 créneaux maximum
     return slots[:3]
 
+# Créer un scheduler global
+scheduler = BackgroundScheduler()
+scheduler.start()
+
+def send_appointment_reminder(sender, appointment_info):
+    """Envoie un message de rappel pour un rendez-vous"""
+    try:
+        print(f"\n[DEBUG] Envoi du rappel de rendez-vous:")
+        print(f"- Client: {sender}")
+        print(f"- Rendez-vous: {appointment_info}")
+
+        # Formater le message de rappel
+        message = f"⏰ Rappel : Vous avez rendez-vous dans 1 heure !\n\n"
+        message += f"📅 Date : {appointment_info['date']}\n"
+        message += f"🔧 Service : {appointment_info['service']}\n"
+        message += f"🏪 Garage : {appointment_info['garage']}\n"
+        message += f"📍 Ville : {appointment_info['city']}\n\n"
+        message += "À très bientôt !"
+
+        # Envoyer le message WhatsApp
+        send_message(sender, message)
+        print(f"[INFO] Rappel envoyé avec succès à {sender}")
+
+    except Exception as e:
+        print(f"[ERROR] Erreur lors de l'envoi du rappel: {str(e)}")
+
+def schedule_appointment_reminder(sender, slot_start, service_name, garage_info):
+    """Planifie l'envoi d'un rappel pour un rendez-vous"""
+    try:
+        print(f"\n[DEBUG] Planification du rappel de rendez-vous:")
+        print(f"- Client: {sender}")
+        print(f"- Date: {slot_start}")
+        print(f"- Service: {service_name}")
+        print(f"- Garage: {garage_info['name']}")
+
+        # Calculer l'heure d'envoi du rappel (1 heure avant le rendez-vous)
+        reminder_time = slot_start - timedelta(hours=1)
+
+        # Si le rendez-vous est dans moins d'une heure, ne pas planifier de rappel
+        if reminder_time <= datetime.now(pytz.timezone(TIMEZONE)):
+            print("[INFO] Le rendez-vous est dans moins d'une heure, pas de rappel planifié")
+            return
+
+        # Préparer les informations pour le rappel
+        appointment_info = {
+            'date': format_date_fr(slot_start),
+            'service': service_name,
+            'garage': garage_info['name'],
+            'city': garage_info['city']
+        }
+
+        # Planifier le rappel
+        scheduler.add_job(
+            send_appointment_reminder,
+            trigger=DateTrigger(run_date=reminder_time),
+            args=[sender, appointment_info],
+            id=f"reminder_{sender}_{slot_start.strftime('%Y%m%d%H%M')}"
+        )
+
+        print(f"[INFO] Rappel planifié pour {reminder_time}")
+
+    except Exception as e:
+        print(f"[ERROR] Erreur lors de la planification du rappel: {str(e)}")
+
 # Fonction créer rendez-vous
 def create_appointment(sender, slot_start, slot_end, service_name, service_duration):
     print(f"\n[DEBUG] Création d'un rendez-vous:")
@@ -460,6 +527,11 @@ def create_appointment(sender, slot_start, slot_end, service_name, service_durat
         print(f"Durée: {service_duration} minutes")
         print(f"Service: {service_name}")
         print(f"Client: {user_data[sender]['data'].get('Nom complet', 'Client')}")
+
+        # Planifier le rappel même en mode test
+        if garage_id and sender in user_data and 'selected_garage' in user_data[sender]:
+            schedule_appointment_reminder(sender, slot_start, service_name, user_data[sender]['selected_garage'])
+
         return "https://calendar.google.com/mock-link"
 
     # Code pour le mode production
@@ -496,6 +568,11 @@ def create_appointment(sender, slot_start, slot_end, service_name, service_durat
         specific_calendar_id = CALENDAR_ID
 
     created_event = specific_calendar_service.events().insert(calendarId=specific_calendar_id, body=event).execute()
+
+    # Planifier le rappel si le garage est sélectionné
+    if garage_id and sender in user_data and 'selected_garage' in user_data[sender]:
+        schedule_appointment_reminder(sender, slot_start, service_name, user_data[sender]['selected_garage'])
+
     return created_event.get('htmlLink')
 
 # Charger les scénarios depuis les fichiers process
@@ -585,6 +662,11 @@ def webhook():
                             if sender in user_data:
                                 del user_data[sender]
                             send_initial_garage_message(sender)
+                            return "OK", 200
+
+                        # Vérifier si l'utilisateur a terminé sa conversation
+                        if sender in user_data and user_data[sender].get('state') == 'terminated':
+                            print("[DEBUG] Utilisateur en état terminated - Ignorer le message")
                             return "OK", 200
 
                         if sender not in user_data:
@@ -859,7 +941,7 @@ def send_step_message(to_number, step_index, process):
             buttons = []
             for answer in expected_answers:
                 # Pour les services, utiliser le nom du service comme titre
-                if 'dynamic_data' in step and ('services' in step['dynamic_data'] or 'services_file' in step['dynamic_data']):
+                if 'dynamic_data' in step and ('services' in step['dynamic_data'] or 'services_file' in step['dynamic_data']:
                     for service in services['services']:
                         if service['id'] == answer:
                             # Raccourcir le titre pour les boutons
@@ -908,7 +990,7 @@ def send_step_message(to_number, step_index, process):
 
             for answer in expected_answers:
                 # Pour les services, utiliser le nom du service comme titre
-                if 'dynamic_data' in step and ('services' in step['dynamic_data'] or 'services_file' in step['dynamic_data']):
+                if 'dynamic_data' in step and ('services' in step['dynamic_data'] or 'services_file' in step['dynamic_data']:
                     for service in services['services']:
                         if service['id'] == answer:
                             # Pour les listes, on peut utiliser des titres plus longs
@@ -1674,9 +1756,13 @@ def handle_final_response(sender, text):
         send_initial_garage_message(sender)
     elif text == "no_new_request":
         print("[DEBUG] Fin de conversation détectée")
-        # Effacer la conversation
+        # Effacer la conversation et marquer l'utilisateur comme terminé
         if sender in user_data:
-            del user_data[sender]
+            user_data[sender] = {
+                'state': 'terminated',
+                'last_activity': datetime.now()
+            }
+        # Pas de message supplémentaire envoyé
 
 def handle_creation_process(sender, state, text, message):
     """Gère le processus de création de rendez-vous"""
