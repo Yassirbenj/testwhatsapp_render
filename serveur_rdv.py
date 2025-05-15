@@ -452,7 +452,7 @@ def send_appointment_reminder(sender, appointment_info):
         print(f"- Client: {sender}")
         print(f"- Rendez-vous: {appointment_info}")
 
-        # Formater le message de rappel
+        # Envoyer d'abord le message de rappel
         message = f"⏰ Rappel : Vous avez rendez-vous dans 1 heure !\n\n"
         message += f"📅 Date : {appointment_info['date']}\n"
         message += f"🔧 Service : {appointment_info['service']}\n"
@@ -460,8 +460,44 @@ def send_appointment_reminder(sender, appointment_info):
         message += f"📍 Ville : {appointment_info['city']}\n\n"
         message += "À très bientôt !"
 
-        # Envoyer le message WhatsApp
-        send_message(sender, message)
+        # Envoyer le message WhatsApp avec les boutons
+        url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
+        headers = {
+            "Authorization": f"Bearer {ACCESS_TOKEN}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": sender,
+            "type": "interactive",
+            "interactive": {
+                "type": "button",
+                "body": {
+                    "text": message
+                },
+                "action": {
+                    "buttons": [
+                        {
+                            "type": "reply",
+                            "reply": {
+                                "id": "confirm_reminder",
+                                "title": "OK"
+                            }
+                        },
+                        {
+                            "type": "reply",
+                            "reply": {
+                                "id": "cancel_appointment",
+                                "title": "Annuler RDV"
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+
+        response = requests.post(url, headers=headers, data=json.dumps(payload))
         print(f"[INFO] Rappel envoyé avec succès à {sender}")
 
     except Exception as e:
@@ -635,8 +671,23 @@ def webhook():
                             interactive = message['interactive']
                             # Gérer les réponses de boutons
                             if 'button_reply' in interactive:
-                                text = interactive['button_reply']['id']
-                                print(f"[DEBUG] Réponse bouton: {text}")
+                                button_id = interactive['button_reply']['id']
+                                if button_id == 'cancel_appointment':
+                                    # Réinitialiser l'utilisateur pour le processus d'annulation
+                                    user_data[sender] = {
+                                        'state': 'initial',
+                                        'current_step': 0,
+                                        'data': {},
+                                        'process_type': 'annulation',
+                                        'last_activity': datetime.now()
+                                    }
+                                    # Si le garage était déjà sélectionné, le conserver
+                                    if 'selected_garage' in user_data.get(sender, {}):
+                                        user_data[sender]['selected_garage'] = user_data[sender]['selected_garage']
+                                    return handle_cancellation_process(sender, 'initial', None, message)
+                                elif button_id == 'confirm_reminder':
+                                    send_message(sender, "Parfait, à tout à l'heure !")
+                                    return "OK", 200
                             # Gérer les réponses de liste
                             elif 'list_reply' in interactive:
                                 text = interactive['list_reply']['id']
