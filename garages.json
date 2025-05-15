@@ -9,7 +9,7 @@
             "calendar_id": "benjilaliyassir@gmail.com",
             "closing_hour": 20,
             "working_hours": [9, 10, 11, 15, 16, 17, 18, 19],
-            "working_days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+            "working_days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
             "max_appointments_per_slot": 2,
             "credentials": {
                 "calendar": "credentials/garage1_calendar.json",
@@ -37,7 +37,7 @@
             "calendar_id": "garage2@gmail.com",
             "closing_hour": 19,
             "working_hours": [8, 9, 10, 11, 12, 14, 15, 16, 17, 18],
-            "working_days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+            "working_days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
             "max_appointments_per_slot": 3,
             "credentials": {
                 "calendar": "credentials/garage2_calendar.json",
