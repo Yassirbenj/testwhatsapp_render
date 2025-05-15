@@ -589,14 +589,67 @@ def webhook():
 
                         if sender not in user_data:
                             print("[DEBUG] Nouvel utilisateur détecté")
-                            # Premier message - choisir le garage
-                            user_data[sender] = {
-                                'state': 'initial',
-                                'current_step': 0,
-                                'data': {},
-                                'last_activity': datetime.now()
-                            }
-                            send_initial_garage_message(sender)
+                            # Vérifier si le premier message est un pseudo de garage
+                            garage = get_garage_by_pseudo(text.replace('@', '').strip())
+                            if garage:
+                                print(f"[DEBUG] Garage trouvé directement: {garage['name']}")
+                                # Initialiser l'utilisateur avec le garage trouvé
+                                user_data[sender] = {
+                                    'state': 'initial',
+                                    'current_step': 0,
+                                    'data': {},
+                                    'last_activity': datetime.now(),
+                                    'selected_garage': garage
+                                }
+                                # Envoyer directement le message de confirmation
+                                confirmation_message = f"Vous avez sélectionné le garage : {garage['name']} ({garage['city']})"
+                                send_message(sender, confirmation_message)
+                                # Envoyer les boutons de confirmation
+                                url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
+                                headers = {
+                                    "Authorization": f"Bearer {ACCESS_TOKEN}",
+                                    "Content-Type": "application/json"
+                                }
+                                payload = {
+                                    "messaging_product": "whatsapp",
+                                    "to": sender,
+                                    "type": "interactive",
+                                    "interactive": {
+                                        "type": "button",
+                                        "body": {
+                                            "text": "Voulez-vous continuer avec ce garage ?"
+                                        },
+                                        "action": {
+                                            "buttons": [
+                                                {
+                                                    "type": "reply",
+                                                    "reply": {
+                                                        "id": "confirm_garage",
+                                                        "title": "OK"
+                                                    }
+                                                },
+                                                {
+                                                    "type": "reply",
+                                                    "reply": {
+                                                        "id": "change_garage",
+                                                        "title": "Changer de garage"
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                                response = requests.post(url, headers=headers, data=json.dumps(payload))
+                            else:
+                                print("[DEBUG] Aucun garage trouvé, envoi du message initial")
+                                # Premier message - choisir le garage
+                                user_data[sender] = {
+                                    'state': 'initial',
+                                    'current_step': 0,
+                                    'data': {},
+                                    'last_activity': datetime.now()
+                                }
+                                send_initial_garage_message(sender)
                             return "OK", 200
 
                         # Mettre à jour le timestamp de dernière activité

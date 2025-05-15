@@ -1,4 +1,5 @@
-'''solution de bot rdv'''
+'''solution de bot rdv multigarage avec selection du garage par alias,
+heures et jours specifiques par garage, services spécifiques par garage'''
 
 from flask import Flask, request, jsonify
 import requests
@@ -182,15 +183,18 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
         garages = load_garages()
         closing_hour = 18  # Valeur par défaut
         working_hours = [9, 10, 11, 14, 15, 16, 17]  # Valeurs par défaut
+        working_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]  # Valeurs par défaut
         max_appointments_per_slot = 1  # Valeur par défaut
 
         for garage in garages['garages']:
             if garage['id'] == garage_id:
                 closing_hour = garage.get('closing_hour', 18)  # Utiliser 18 si non spécifié
                 working_hours = garage.get('working_hours', working_hours)  # Utiliser les heures par défaut si non spécifiées
+                working_days = garage.get('working_days', working_days)  # Utiliser les jours par défaut si non spécifiés
                 max_appointments_per_slot = int(garage.get('max_appointments_per_slot', 1))  # Utiliser 1 si non spécifié et convertir en int
                 print(f"[DEBUG] Heure de fermeture pour {garage_id}: {closing_hour}h")
                 print(f"[DEBUG] Heures de travail pour {garage_id}: {working_hours}")
+                print(f"[DEBUG] Jours de travail pour {garage_id}: {working_days}")
                 print(f"[DEBUG] Nombre max de RDV par créneau pour {garage_id}: {max_appointments_per_slot} (type: {type(max_appointments_per_slot)})")
                 break
     else:
@@ -198,6 +202,7 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
         specific_calendar_id = CALENDAR_ID
         closing_hour = 18  # Valeur par défaut si pas de garage spécifié
         working_hours = [9, 10, 11, 14, 15, 16, 17]  # Valeurs par défaut
+        working_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]  # Valeurs par défaut
         max_appointments_per_slot = 1  # Valeur par défaut
 
     # Vérifier d'abord si le calendrier existe
@@ -312,7 +317,6 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
                     filtered_busy_times.append(busy)
                     print(f"[DEBUG] Gardé comme busy: {busy_start} à {busy_end} (non identifié)")
 
-
         print(f"[DEBUG] Busy times après filtrage: {len(filtered_busy_times)}")
         busy_times = filtered_busy_times
 
@@ -345,56 +349,60 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
         slots_rejected_overlap = 0
 
         while current_date < end_date:
-            for hour in possible_hours:
-                local_start = timezone.localize(datetime.combine(current_date, time(hour, 0)))
-                local_end = local_start + timedelta(hours=duration_hours)
+            # Vérifier si le jour est un jour de travail
+            if current_date.strftime('%A') in working_days:
+                for hour in possible_hours:
+                    local_start = timezone.localize(datetime.combine(current_date, time(hour, 0)))
+                    local_end = local_start + timedelta(hours=duration_hours)
 
-                # Créer la clé pour ce créneau
-                slot_key = local_start.strftime('%Y-%m-%d-%H')
-                slots_checked += 1
+                    # Créer la clé pour ce créneau
+                    slot_key = local_start.strftime('%Y-%m-%d-%H')
+                    slots_checked += 1
 
-                # Obtenir le nombre actuel de rendez-vous pour ce créneau
-                current_count = slot_counts.get(slot_key, 0)
+                    # Obtenir le nombre actuel de rendez-vous pour ce créneau
+                    current_count = slot_counts.get(slot_key, 0)
 
-                # Vérifier si le créneau est dans le futur
-                if local_start > datetime.now(timezone):
-                    # Vérifier explicitement la condition
-                    is_below_max = current_count < max_appointments_per_slot
+                    # Vérifier si le créneau est dans le futur
+                    if local_start > datetime.now(timezone):
+                        # Vérifier explicitement la condition
+                        is_below_max = current_count < max_appointments_per_slot
 
-                    print(f"[DEBUG] Vérification du créneau {local_start.strftime('%Y-%m-%d %H:%M')}")
-                    print(f"[DEBUG] Compteur actuel: {current_count}, Max autorisé: {max_appointments_per_slot}, Disponible: {is_below_max}")
+                        print(f"[DEBUG] Vérification du créneau {local_start.strftime('%Y-%m-%d %H:%M')}")
+                        print(f"[DEBUG] Compteur actuel: {current_count}, Max autorisé: {max_appointments_per_slot}, Disponible: {is_below_max}")
 
-                    # N'autoriser le créneau que si le nombre de rendez-vous est inférieur au maximum
-                    if is_below_max:
-                        # Vérifier aussi si le créneau n'est pas occupé (par des événements de type blocage)
-                        start_utc = local_start.astimezone(pytz.utc).isoformat()
-                        end_utc = local_end.astimezone(pytz.utc).isoformat()
+                        # N'autoriser le créneau que si le nombre de rendez-vous est inférieur au maximum
+                        if is_below_max:
+                            # Vérifier aussi si le créneau n'est pas occupé (par des événements de type blocage)
+                            start_utc = local_start.astimezone(pytz.utc).isoformat()
+                            end_utc = local_end.astimezone(pytz.utc).isoformat()
 
-                        # Debug des busy_times (uniquement les événements de blocage maintenant)
-                        print(f"[DEBUG] Vérification de chevauchement pour {local_start.strftime('%Y-%m-%d %H:%M')}")
-                        has_overlap = False
-                        for busy in busy_times:
-                            cond1 = busy['start'] <= start_utc < busy['end']
-                            cond2 = busy['start'] < end_utc <= busy['end']
-                            cond3 = start_utc <= busy['start'] and end_utc >= busy['end']
-                            current_overlap = cond1 or cond2 or cond3
-                            if current_overlap:
-                                has_overlap = True
-                                print(f"[DEBUG] Chevauchement détecté: {busy['start']} à {busy['end']}")
-                                print(f"[DEBUG] Conditions: start_in_busy={cond1}, end_in_busy={cond2}, busy_in_slot={cond3}")
+                            # Debug des busy_times (uniquement les événements de blocage maintenant)
+                            print(f"[DEBUG] Vérification de chevauchement pour {local_start.strftime('%Y-%m-%d %H:%M')}")
+                            has_overlap = False
+                            for busy in busy_times:
+                                cond1 = busy['start'] <= start_utc < busy['end']
+                                cond2 = busy['start'] < end_utc <= busy['end']
+                                cond3 = start_utc <= busy['start'] and end_utc >= busy['end']
+                                current_overlap = cond1 or cond2 or cond3
+                                if current_overlap:
+                                    has_overlap = True
+                                    print(f"[DEBUG] Chevauchement détecté: {busy['start']} à {busy['end']}")
+                                    print(f"[DEBUG] Conditions: start_in_busy={cond1}, end_in_busy={cond2}, busy_in_slot={cond3}")
 
-                        overlapping = has_overlap
+                            overlapping = has_overlap
 
-                        if not overlapping:
-                            slots.append((local_start, local_end))
-                            slots_available += 1
-                            print(f"[DEBUG] Créneau disponible trouvé: {local_start.strftime('%Y-%m-%d %H:%M')} - Compteur actuel: {current_count}/{max_appointments_per_slot}")
+                            if not overlapping:
+                                slots.append((local_start, local_end))
+                                slots_available += 1
+                                print(f"[DEBUG] Créneau disponible trouvé: {local_start.strftime('%Y-%m-%d %H:%M')} - Compteur actuel: {current_count}/{max_appointments_per_slot}")
+                            else:
+                                slots_rejected_overlap += 1
+                                print(f"[DEBUG] Créneau rejeté (chevauchement): {local_start.strftime('%Y-%m-%d %H:%M')} - Compteur: {current_count}/{max_appointments_per_slot}")
                         else:
-                            slots_rejected_overlap += 1
-                            print(f"[DEBUG] Créneau rejeté (chevauchement): {local_start.strftime('%Y-%m-%d %H:%M')} - Compteur: {current_count}/{max_appointments_per_slot}")
-                    else:
-                        slots_rejected_count += 1
-                        print(f"[DEBUG] Créneau rejeté (complet): {local_start.strftime('%Y-%m-%d %H:%M')} - Compteur: {current_count}/{max_appointments_per_slot}")
+                            slots_rejected_count += 1
+                            print(f"[DEBUG] Créneau rejeté (complet): {local_start.strftime('%Y-%m-%d %H:%M')} - Compteur: {current_count}/{max_appointments_per_slot}")
+            else:
+                print(f"[DEBUG] Jour non travaillé: {current_date.strftime('%A')}")
 
             current_date += timedelta(days=1)
 
@@ -417,14 +425,16 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
 
         for i in range(3):  # Proposer 3 jours à partir de la date demandée
             day = start_date + timedelta(days=i)
-            for hour in standard_hours:
-                if hour + duration_hours <= closing_hour:  # Vérifier que le service tient dans la journée selon l'heure de fermeture
-                    slot_start = timezone.localize(datetime.combine(day, time(hour, 0)))
-                    slot_end = slot_start + timedelta(hours=duration_hours)
+            # Vérifier si le jour est un jour de travail
+            if day.strftime('%A') in working_days:
+                for hour in standard_hours:
+                    if hour + duration_hours <= closing_hour:  # Vérifier que le service tient dans la journée selon l'heure de fermeture
+                        slot_start = timezone.localize(datetime.combine(day, time(hour, 0)))
+                        slot_end = slot_start + timedelta(hours=duration_hours)
 
-                    # Ne pas proposer de créneaux dans le passé
-                    if slot_start > datetime.now(timezone):
-                        slots.append((slot_start, slot_end))
+                        # Ne pas proposer de créneaux dans le passé
+                        if slot_start > datetime.now(timezone):
+                            slots.append((slot_start, slot_end))
 
     # Limiter à 3 créneaux maximum
     return slots[:3]
@@ -961,16 +971,30 @@ def send_date_buttons(sender):
         "Content-Type": "application/json"
     }
 
-    # Calculer les dates pour les 7 prochains jours
+    # Récupérer les jours de travail du garage sélectionné
+    working_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]  # Valeur par défaut
+    if sender in user_data and 'selected_garage' in user_data[sender]:
+        garage_id = user_data[sender]['selected_garage']['id']
+        garages = load_garages()
+        for garage in garages['garages']:
+            if garage['id'] == garage_id:
+                working_days = garage.get('working_days', working_days)
+                break
+        print(f"[DEBUG] Jours de travail pour le garage {garage_id}: {working_days}")
+
+    # Calculer les dates pour les prochains jours
     today = datetime.now()
     dates = []
-    for i in range(7):
-        date = today + timedelta(days=i)
-        dates.append(date.strftime("%Y-%m-%d"))
+    current_date = today
+    while len(dates) < 3:  # On cherche 3 dates valides
+        # Vérifier si le jour est un jour de travail
+        if current_date.strftime('%A') in working_days:
+            dates.append(current_date.strftime("%Y-%m-%d"))
+        current_date += timedelta(days=1)
 
     # Créer les boutons
     buttons = []
-    for date in dates[:3]:  # Limite à 3 boutons
+    for date in dates:  # On a déjà limité à 3 dates valides
         formatted_date = datetime.strptime(date, "%Y-%m-%d").strftime("%d/%m/%Y")
         buttons.append({
             "type": "reply",
@@ -1618,6 +1642,23 @@ def handle_creation_process(sender, state, text, message):
             else:
                 # Sinon, essayer de parser la date saisie manuellement
                 start_date = datetime.strptime(text, "%Y-%m-%d")
+
+            # Vérifier si la date est un jour de travail
+            working_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]  # Valeur par défaut
+            if 'selected_garage' in user_data[sender]:
+                garage_id = user_data[sender]['selected_garage']['id']
+                garages = load_garages()
+                for garage in garages['garages']:
+                    if garage['id'] == garage_id:
+                        working_days = garage.get('working_days', working_days)
+                        break
+                print(f"[DEBUG] Jours de travail pour le garage {garage_id}: {working_days}")
+
+            if start_date.strftime('%A') not in working_days:
+                send_message(sender, f"Désolé, le garage n'est pas ouvert le {JOURS[start_date.strftime('%A')]}. Merci de choisir un autre jour.")
+                send_date_buttons(sender)  # Renvoyer les boutons
+                return "OK", 200
+
         except Exception:
             send_message(sender, "Merci d'indiquer une date future au format JJ/MM/AAA (ex: 10/06/2025)")
             send_date_buttons(sender)  # Renvoyer les boutons
