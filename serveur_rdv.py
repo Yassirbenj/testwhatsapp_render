@@ -2341,6 +2341,10 @@ def test_max_appointments_per_slot():
 
     print("\n=== Fin du test ===")
 
+@app.route('/privacy', methods=['GET'])
+def privacy_policy():
+    return app.send_static_file('privacy.html')
+
 # === RUN APP ===
 if __name__ == '__main__':
     import sys
