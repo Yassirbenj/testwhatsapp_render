@@ -670,8 +670,9 @@ def webhook():
                             interactive = message['interactive']
                             # Gérer les réponses de boutons
                             if 'button_reply' in interactive:
-                                button_id = interactive['button_reply']['id']
-                                if button_id == 'cancel_appointment':
+                                text = interactive['button_reply']['id']
+                                print(f"[DEBUG] Réponse bouton: {text}")
+                                if text == 'cancel_appointment':
                                     # Réinitialiser l'utilisateur pour le processus d'annulation
                                     user_data[sender] = {
                                         'state': 'initial',
@@ -684,7 +685,7 @@ def webhook():
                                     if 'selected_client' in user_data.get(sender, {}):
                                         user_data[sender]['selected_client'] = user_data[sender]['selected_client']
                                     return handle_cancellation_process(sender, 'initial', None, message)
-                                elif button_id == 'confirm_reminder':
+                                elif text == 'confirm_reminder':
                                     send_message(sender, "Parfait, à tout à l'heure !")
                                     return "OK", 200
                             # Gérer les réponses de liste
