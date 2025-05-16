@@ -1,6 +1,6 @@
 [
   {
-    "message": "Bonjour 👋, bienvenue chez {{garage_name}} !\nComment puis-je vous aider ?\n\n1- Prendre rendez-vous\n2- Annuler un rendez-vous\n3- Autres",
+    "message": "Bonjour ��, bienvenue chez {{client_name}} !\nComment puis-je vous aider ?\n\n1- Prendre rendez-vous\n2- Annuler un rendez-vous\n3- Autres",
     "expected_answers": ["1", "2", "3"],
     "next_step": {
       "1": 1,
@@ -25,10 +25,13 @@
     }
   },
   {
-    "message": "Très bien. Quel est le modèle de votre véhicule et son année de mise en circulation ?",
+    "message": "{{additional_questions}}",
     "expected_answers": "free_text",
     "next_step": 4,
-    "save_as": "Question supplémentaire"
+    "save_as": "{{additional_questions_save_as}}",
+    "dynamic_data": {
+      "additional_questions": true
+    }
   },
   {
     "message": "Merci beaucoup ! 🙏 Nous allons maintenant choisir ensemble un créneau pour votre rendez-vous. tapez ok pour continuer",

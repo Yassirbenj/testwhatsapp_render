@@ -82,76 +82,75 @@ TIMEZONE = 'Africa/Casablanca'
 print(calendar_service.calendarList().list().execute())
 print(drive_service.files().list().execute())
 
-# Initialiser un cache pour les services calendar par garage
-garage_calendar_services = {}
+# Initialiser un cache pour les services calendar par client
+client_calendar_services = {}
 
-def get_garage_calendar_service(garage_id):
-    """Obtient le service calendar pour un garage spécifique"""
-    global garage_calendar_services
+def get_client_calendar_service(client_id):
+    """Obtient le service calendar pour un client spécifique"""
+    global client_calendar_services
 
     # Si le service a déjà été initialisé, le retourner
-    if garage_id in garage_calendar_services:
-        return garage_calendar_services[garage_id]
+    if client_id in client_calendar_services:
+        return client_calendar_services[client_id]
 
     try:
-        # Récupérer les informations du garage
-        garages = load_garages()
-        target_garage = None
-        for garage in garages['garages']:
-            if garage['id'] == garage_id:
-                target_garage = garage
+        # Récupérer les informations du client
+        clients = load_clients()
+        target_client = None
+        for client in clients['clients']:
+            if client['id'] == client_id:
+                target_client = client
                 break
 
-        if not target_garage:
-            print(f"[ERROR] Garage non trouvé pour l'ID: {garage_id}")
+        if not target_client:
+            print(f"[ERROR] Client non trouvé pour l'ID: {client_id}")
             return {'service': calendar_service, 'calendar_id': CALENDAR_ID}  # Retourner le service par défaut
 
         # Récupérer les credentials du .env ou des variables d'environnement
-        env_credential_key = f"CREDENTIALS_FILE_CALENDAR_{garage_id.upper()}"
+        env_credential_key = f"CREDENTIALS_FILE_CALENDAR_{client_id.upper()}"
         credentials_path = os.getenv(env_credential_key, CREDENTIALS_FILE_CALENDAR)
 
         print(f"[DEBUG] Utilisation des credentials à partir de {env_credential_key}: {credentials_path}")
 
         # Récupérer le calendar_id
-        calendar_id = target_garage.get('calendar_id', CALENDAR_ID)
+        calendar_id = target_client.get('calendar_id', CALENDAR_ID)
 
         # Si les credentials existent
         if os.path.exists(credentials_path):
-            # Initialiser le service avec les credentials spécifiques du garage
+            # Initialiser le service avec les credentials spécifiques du client
             credentials = service_account.Credentials.from_service_account_file(
                 credentials_path, scopes=SCOPES
             )
             specific_service = build('calendar', 'v3', credentials=credentials)
 
             # Stocker dans le cache
-            garage_calendar_services[garage_id] = {
+            client_calendar_services[client_id] = {
                 'service': specific_service,
                 'calendar_id': calendar_id
             }
 
-            print(f"[INFO] Service calendar initialisé pour le garage {garage_id} avec calendar_id {calendar_id}")
-            return garage_calendar_services[garage_id]
+            print(f"[INFO] Service calendar initialisé pour le client {client_id} avec calendar_id {calendar_id}")
+            return client_calendar_services[client_id]
         else:
-            print(f"[WARNING] Credentials non trouvés pour le garage {garage_id} (path: {credentials_path})")
+            print(f"[WARNING] Credentials non trouvés pour le client {client_id} (path: {credentials_path})")
             # Créer une entrée dans le cache avec le service par défaut
-            garage_calendar_services[garage_id] = {
+            client_calendar_services[client_id] = {
                 'service': calendar_service,
                 'calendar_id': calendar_id
             }
-            return garage_calendar_services[garage_id]
+            return client_calendar_services[client_id]
 
     except Exception as e:
-        print(f"[ERROR] Erreur lors de l'initialisation du service calendar pour le garage {garage_id}: {str(e)}")
+        print(f"[ERROR] Erreur lors de l'initialisation du service calendar pour le client {client_id}: {str(e)}")
         # Retourner le service par défaut
         return {'service': calendar_service, 'calendar_id': CALENDAR_ID}
 
-# Fonction de recherche de créneaux
-def find_available_slots(start_date, service_duration, num_days=5, garage_id=None):
+def find_available_slots(start_date, service_duration, num_days=5, client_id=None):
     print(f"\n[DEBUG] Recherche de créneaux disponibles:")
     print(f"- Date de début: {start_date}")
     print(f"- Durée du service: {service_duration} minutes")
     print(f"- Nombre de jours: {num_days}")
-    print(f"- Garage ID: {garage_id}")
+    print(f"- Client ID: {client_id}")
 
     # En mode test, retourner des créneaux fictifs
     if os.getenv('TEST_MODE') == 'True':
@@ -175,34 +174,34 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
     timezone = pytz.timezone(TIMEZONE)
     slots = []
 
-    # Récupérer le service calendar et l'ID du calendrier pour ce garage
-    if garage_id:
-        calendar_info = get_garage_calendar_service(garage_id)
+    # Récupérer le service calendar et l'ID du calendrier pour ce client
+    if client_id:
+        calendar_info = get_client_calendar_service(client_id)
         specific_calendar_service = calendar_info['service']
         specific_calendar_id = calendar_info['calendar_id']
 
-        # Récupérer les paramètres du garage
-        garages = load_garages()
+        # Récupérer les paramètres du client
+        clients = load_clients()
         closing_hour = 18  # Valeur par défaut
         working_hours = [9, 10, 11, 14, 15, 16, 17]  # Valeurs par défaut
         working_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]  # Valeurs par défaut
         max_appointments_per_slot = 1  # Valeur par défaut
 
-        for garage in garages['garages']:
-            if garage['id'] == garage_id:
-                closing_hour = garage.get('closing_hour', 18)  # Utiliser 18 si non spécifié
-                working_hours = garage.get('working_hours', working_hours)  # Utiliser les heures par défaut si non spécifiées
-                working_days = garage.get('working_days', working_days)  # Utiliser les jours par défaut si non spécifiés
-                max_appointments_per_slot = int(garage.get('max_appointments_per_slot', 1))  # Utiliser 1 si non spécifié et convertir en int
-                print(f"[DEBUG] Heure de fermeture pour {garage_id}: {closing_hour}h")
-                print(f"[DEBUG] Heures de travail pour {garage_id}: {working_hours}")
-                print(f"[DEBUG] Jours de travail pour {garage_id}: {working_days}")
-                print(f"[DEBUG] Nombre max de RDV par créneau pour {garage_id}: {max_appointments_per_slot} (type: {type(max_appointments_per_slot)})")
+        for client in clients['clients']:
+            if client['id'] == client_id:
+                closing_hour = client.get('closing_hour', 18)  # Utiliser 18 si non spécifié
+                working_hours = client.get('working_hours', working_hours)  # Utiliser les heures par défaut si non spécifiées
+                working_days = client.get('working_days', working_days)  # Utiliser les jours par défaut si non spécifiés
+                max_appointments_per_slot = int(client.get('max_appointments_per_slot', 1))  # Utiliser 1 si non spécifié et convertir en int
+                print(f"[DEBUG] Heure de fermeture pour {client_id}: {closing_hour}h")
+                print(f"[DEBUG] Heures de travail pour {client_id}: {working_hours}")
+                print(f"[DEBUG] Jours de travail pour {client_id}: {working_days}")
+                print(f"[DEBUG] Nombre max de RDV par créneau pour {client_id}: {max_appointments_per_slot} (type: {type(max_appointments_per_slot)})")
                 break
     else:
         specific_calendar_service = calendar_service
         specific_calendar_id = CALENDAR_ID
-        closing_hour = 18  # Valeur par défaut si pas de garage spécifié
+        closing_hour = 18  # Valeur par défaut si pas de client spécifié
         working_hours = [9, 10, 11, 14, 15, 16, 17]  # Valeurs par défaut
         working_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]  # Valeurs par défaut
         max_appointments_per_slot = 1  # Valeur par défaut
@@ -223,7 +222,7 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
     # Ajuster les heures possibles en fonction de la durée
     possible_hours = []
     for hour in working_hours:
-        # Vérifier si le créneau complet tient dans la journée en fonction de l'heure de fermeture du garage
+        # Vérifier si le créneau complet tient dans la journée en fonction de l'heure de fermeture du client
         if hour + duration_hours <= closing_hour:
             possible_hours.append(hour)
 
@@ -269,19 +268,19 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
                 event_end = event['end']['dateTime']
                 summary = event.get('summary', '').lower()
 
-                # On considère comme "blocage" les événements qui ne sont pas des RDV Garage
+                # On considère comme "blocage" les événements qui ne sont pas des RDV clients
                 # ou qui contiennent des mots-clés spécifiques
-                is_rdv_garage = summary.startswith('rdv garage')
+                is_rdv_client = summary.startswith('rdv client')
                 is_blocking_keyword = any(
                     keyword in summary.lower() for keyword in ['bloqué', 'blocage', 'indispo', 'fermeture']
                 )
 
-                # Un événement est un blocage s'il n'est PAS un RDV Garage ET qu'il contient un mot-clé de blocage
+                # Un événement est un blocage s'il n'est PAS un RDV client ET qu'il contient un mot-clé de blocage
                 # OU si c'est explicitement un blocage (avec un mot-clé)
-                is_blocking = (not is_rdv_garage and not "rendez-vous" in summary.lower()) or is_blocking_keyword
+                is_blocking = (not is_rdv_client and not "rendez-vous" in summary.lower()) or is_blocking_keyword
 
                 print(f"[DEBUG] Analyse de l'événement: {summary}")
-                print(f"[DEBUG] Est un RDV Garage: {is_rdv_garage}")
+                print(f"[DEBUG] Est un RDV Client: {is_rdv_client}")
                 print(f"[DEBUG] Contient mot-clé de blocage: {is_blocking_keyword}")
                 print(f"[DEBUG] Est un blocage: {is_blocking}")
 
@@ -422,7 +421,7 @@ def find_available_slots(start_date, service_duration, num_days=5, garage_id=Non
         # En cas d'erreur, retourner des créneaux disponibles à des heures standard
         print("[INFO] Génération de créneaux standard en raison de l'erreur de calendrier")
 
-        # Utiliser les heures de travail du garage pour proposer des créneaux standards
+        # Utiliser les heures de travail du client pour proposer des créneaux standards
         standard_hours = working_hours[:3] if len(working_hours) >= 3 else working_hours  # Prendre les 3 premières heures ou toutes si moins de 3
 
         for i in range(3):  # Proposer 3 jours à partir de la date demandée
@@ -456,7 +455,7 @@ def send_appointment_reminder(sender, appointment_info):
         message = f"⏰ Rappel : Vous avez rendez-vous dans 1 heure !\n\n"
         message += f"📅 Date : {appointment_info['date']}\n"
         message += f"🔧 Service : {appointment_info['service']}\n"
-        message += f"🏪 Garage : {appointment_info['garage']}\n"
+        message += f"🏪 Lieu : {appointment_info['client']}\n"
         message += f"📍 Ville : {appointment_info['city']}\n\n"
         message += "À très bientôt !"
 
@@ -503,14 +502,14 @@ def send_appointment_reminder(sender, appointment_info):
     except Exception as e:
         print(f"[ERROR] Erreur lors de l'envoi du rappel: {str(e)}")
 
-def schedule_appointment_reminder(sender, slot_start, service_name, garage_info):
+def schedule_appointment_reminder(sender, slot_start, service_name, client_info):
     """Planifie l'envoi d'un rappel pour un rendez-vous"""
     try:
         print(f"\n[DEBUG] Planification du rappel de rendez-vous:")
         print(f"- Client: {sender}")
         print(f"- Date: {slot_start}")
         print(f"- Service: {service_name}")
-        print(f"- Garage: {garage_info['name']}")
+        print(f"- Client: {client_info['name']}")
 
         # Calculer l'heure d'envoi du rappel (1 heure avant le rendez-vous)
         reminder_time = slot_start - timedelta(hours=1)
@@ -524,8 +523,8 @@ def schedule_appointment_reminder(sender, slot_start, service_name, garage_info)
         appointment_info = {
             'date': format_date_fr(slot_start),
             'service': service_name,
-            'garage': garage_info['name'],
-            'city': garage_info['city']
+            'client': client_info['name'],
+            'city': client_info['city']
         }
 
         # Planifier le rappel
@@ -550,11 +549,11 @@ def create_appointment(sender, slot_start, slot_end, service_name, service_durat
     print(f"- Service: {service_name}")
     print(f"- Durée: {service_duration} minutes")
 
-    # Récupérer l'ID du garage sélectionné
-    garage_id = None
-    if sender in user_data and 'selected_garage' in user_data[sender]:
-        garage_id = user_data[sender]['selected_garage']['id']
-        print(f"- Garage ID: {garage_id}")
+    # Récupérer l'ID du client sélectionné
+    client_id = None
+    if sender in user_data and 'selected_client' in user_data[sender]:
+        client_id = user_data[sender]['selected_client']['id']
+        print(f"- Client ID: {client_id}")
 
     # En mode test, simuler la création d'un rendez-vous
     if os.getenv('TEST_MODE') == 'True':
@@ -565,8 +564,8 @@ def create_appointment(sender, slot_start, slot_end, service_name, service_durat
         print(f"Client: {user_data[sender]['data'].get('Nom complet', 'Client')}")
 
         # Planifier le rappel même en mode test
-        if garage_id and sender in user_data and 'selected_garage' in user_data[sender]:
-            schedule_appointment_reminder(sender, slot_start, service_name, user_data[sender]['selected_garage'])
+        if client_id and sender in user_data and 'selected_client' in user_data[sender]:
+            schedule_appointment_reminder(sender, slot_start, service_name, user_data[sender]['selected_client'])
 
         return "https://calendar.google.com/mock-link"
 
@@ -582,7 +581,7 @@ def create_appointment(sender, slot_start, slot_end, service_name, service_durat
 - Client WhatsApp : {sender}"""
 
     event = {
-        'summary': f"RDV Garage avec {client_name}",
+        'summary': f"RDV avec {client_name}",
         'description': description,
         'start': {
             'dateTime': slot_start.isoformat(),
@@ -594,9 +593,9 @@ def create_appointment(sender, slot_start, slot_end, service_name, service_durat
         }
     }
 
-    # Utiliser le service et le calendar_id spécifiques au garage
-    if garage_id:
-        calendar_info = get_garage_calendar_service(garage_id)
+    # Utiliser le service et le calendar_id spécifiques au client
+    if client_id:
+        calendar_info = get_client_calendar_service(client_id)
         specific_calendar_service = calendar_info['service']
         specific_calendar_id = calendar_info['calendar_id']
     else:
@@ -605,9 +604,9 @@ def create_appointment(sender, slot_start, slot_end, service_name, service_durat
 
     created_event = specific_calendar_service.events().insert(calendarId=specific_calendar_id, body=event).execute()
 
-    # Planifier le rappel si le garage est sélectionné
-    if garage_id and sender in user_data and 'selected_garage' in user_data[sender]:
-        schedule_appointment_reminder(sender, slot_start, service_name, user_data[sender]['selected_garage'])
+    # Planifier le rappel si le client est sélectionné
+    if client_id and sender in user_data and 'selected_client' in user_data[sender]:
+        schedule_appointment_reminder(sender, slot_start, service_name, user_data[sender]['selected_client'])
 
     return created_event.get('htmlLink')
 
@@ -681,9 +680,9 @@ def webhook():
                                         'process_type': 'annulation',
                                         'last_activity': datetime.now()
                                     }
-                                    # Si le garage était déjà sélectionné, le conserver
-                                    if 'selected_garage' in user_data.get(sender, {}):
-                                        user_data[sender]['selected_garage'] = user_data[sender]['selected_garage']
+                                    # Si le client était déjà sélectionné, le conserver
+                                    if 'selected_client' in user_data.get(sender, {}):
+                                        user_data[sender]['selected_client'] = user_data[sender]['selected_client']
                                     return handle_cancellation_process(sender, 'initial', None, message)
                                 elif button_id == 'confirm_reminder':
                                     send_message(sender, "Parfait, à tout à l'heure !")
@@ -712,7 +711,7 @@ def webhook():
                             print("[DEBUG] Commande de réinitialisation détectée")
                             if sender in user_data:
                                 del user_data[sender]
-                            send_initial_garage_message(sender)
+                            send_initial_client_message(sender)
                             return "OK", 200
 
                         # Vérifier si l'utilisateur a terminé sa conversation
@@ -722,20 +721,20 @@ def webhook():
 
                         if sender not in user_data:
                             print("[DEBUG] Nouvel utilisateur détecté")
-                            # Vérifier si le premier message est un pseudo de garage
-                            garage = get_garage_by_pseudo(text.replace('@', '').strip())
-                            if garage:
-                                print(f"[DEBUG] Garage trouvé directement: {garage['name']}")
-                                # Initialiser l'utilisateur avec le garage trouvé
+                            # Vérifier si le premier message est un pseudo de client
+                            client = get_client_by_pseudo(text.replace('@', '').strip())
+                            if client:
+                                print(f"[DEBUG] Client trouvé directement: {client['name']}")
+                                # Initialiser l'utilisateur avec le client trouvé
                                 user_data[sender] = {
                                     'state': 'initial',
                                     'current_step': 0,
                                     'data': {},
                                     'last_activity': datetime.now(),
-                                    'selected_garage': garage
+                                    'selected_client': client
                                 }
                                 # Envoyer directement le message de confirmation
-                                confirmation_message = f"Vous avez sélectionné le garage : {garage['name']} ({garage['city']})"
+                                confirmation_message = f"Vous avez sélectionné : {client['name']} ({client['city']})"
                                 send_message(sender, confirmation_message)
                                 # Envoyer les boutons de confirmation
                                 url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
@@ -750,22 +749,22 @@ def webhook():
                                     "interactive": {
                                         "type": "button",
                                         "body": {
-                                            "text": "Voulez-vous continuer avec ce garage ?"
+                                            "text": "Voulez-vous continuer avec ce partenaire ?"
                                         },
                                         "action": {
                                             "buttons": [
                                                 {
                                                     "type": "reply",
                                                     "reply": {
-                                                        "id": "confirm_garage",
+                                                        "id": "confirm_client",
                                                         "title": "OK"
                                                     }
                                                 },
                                                 {
                                                     "type": "reply",
                                                     "reply": {
-                                                        "id": "change_garage",
-                                                        "title": "Changer de garage"
+                                                        "id": "change_client",
+                                                        "title": "Changer de partenaire"
                                                     }
                                                 }
                                             ]
@@ -774,45 +773,45 @@ def webhook():
                                 }
                                 response = requests.post(url, headers=headers, data=json.dumps(payload))
                             else:
-                                print("[DEBUG] Aucun garage trouvé, envoi du message initial")
-                                # Premier message - choisir le garage
+                                print("[DEBUG] Aucun client trouvé, envoi du message initial")
+                                # Premier message - choisir le client
                                 user_data[sender] = {
                                     'state': 'initial',
                                     'current_step': 0,
                                     'data': {},
                                     'last_activity': datetime.now()
                                 }
-                                send_initial_garage_message(sender)
+                                send_initial_client_message(sender)
                             return "OK", 200
 
                         # Mettre à jour le timestamp de dernière activité
                         user_data[sender]['last_activity'] = datetime.now()
 
-                        # Si l'utilisateur n'a pas encore sélectionné de garage
-                        if 'selected_garage' not in user_data[sender]:
-                            garage = handle_garage_selection(sender, text)
-                            if garage:
-                                user_data[sender]['selected_garage'] = garage
+                        # Si l'utilisateur n'a pas encore sélectionné de client
+                        if 'selected_client' not in user_data[sender]:
+                            client = handle_client_selection(sender, text)
+                            if client:
+                                user_data[sender]['selected_client'] = client
                             return "OK", 200
 
-                        # Si l'utilisateur a répondu à la confirmation du garage
-                        if 'selected_garage' in user_data[sender] and user_data[sender].get('state') == 'initial':
-                            if text == 'confirm_garage':
-                                # Initialiser le processus avec le process_id du garage
+                        # Si l'utilisateur a répondu à la confirmation du client
+                        if 'selected_client' in user_data[sender] and user_data[sender].get('state') == 'initial':
+                            if text == 'confirm_client':
+                                # Initialiser le processus avec le process_id du client
                                 user_data[sender]['process'] = process_rdv  # Utiliser le processus par défaut
                                 user_data[sender]['state'] = 'initial'
                                 user_data[sender]['current_step'] = 0
                                 # Envoyer le premier message du processus
                                 send_step_message(sender, 0, process_rdv)
                                 return "OK", 200
-                            elif text == 'change_garage':
-                                # Supprimer le garage sélectionné
-                                del user_data[sender]['selected_garage']
-                                # Renvoyer la liste des garages
-                                send_garage_selection_message(sender)
+                            elif text == 'change_client':
+                                # Supprimer le client sélectionné
+                                del user_data[sender]['selected_client']
+                                # Renvoyer la liste des clients
+                                send_client_selection_message(sender)
                                 return "OK", 200
 
-                        # Continuer avec le processus normal si un garage est sélectionné
+                        # Continuer avec le processus normal si un client est sélectionné
                         state = user_data[sender]['state']
                         step_index = user_data[sender]['current_step']
                         current_process = user_data[sender]['process']
@@ -919,17 +918,17 @@ def load_services():
         print(f"Erreur lors du chargement des services: {str(e)}")
         return {"services": []}
 
-def get_garage_services(garage_id):
-    """Récupère les services d'un garage spécifique depuis garages.json"""
+def get_client_services(client_id):
+    """Récupère les services d'un client spécifique depuis clients.json"""
     try:
-        garages = load_garages()
-        for garage in garages['garages']:
-            if garage['id'] == garage_id:
-                return {"services": garage['services']}
-        # Si le garage n'est pas trouvé, utiliser les services par défaut
+        clients = load_clients()
+        for client in clients['clients']:
+            if client['id'] == client_id:
+                return {"services": client['services']}
+        # Si le client n'est pas trouvé, utiliser les services par défaut
         return load_services()
     except Exception as e:
-        print(f"Erreur lors du chargement des services pour le garage {garage_id}: {str(e)}")
+        print(f"Erreur lors du chargement des services pour le client {client_id}: {str(e)}")
         return load_services()
 
 def format_services_list(services):
@@ -952,22 +951,22 @@ def send_step_message(to_number, step_index, process):
     message = step['message']
     expected_answers = step['expected_answers']
 
-    # Remplacer le nom du garage si présent
-    if '{{garage_name}}' in message and to_number in user_data and 'selected_garage' in user_data[to_number]:
-        garage_name = user_data[to_number]['selected_garage']['name']
-        message = message.replace('{{garage_name}}', garage_name)
-        print(f"[DEBUG] Nom du garage remplacé: {garage_name}")
+    # Remplacer le nom du client si présent
+    if '{{client_name}}' in message and to_number in user_data and 'selected_client' in user_data[to_number]:
+        client_name = user_data[to_number]['selected_client']['name']
+        message = message.replace('{{client_name}}', client_name)
+        print(f"[DEBUG] Nom du client remplacé: {client_name}")
 
     # Gérer les données dynamiques si présentes
     if 'dynamic_data' in step:
         # Nouvelle structure pour les services
         if 'services' in step['dynamic_data'] or 'services_file' in step['dynamic_data']:
-            # Récupérer les services du garage sélectionné
-            if to_number in user_data and 'selected_garage' in user_data[to_number]:
-                garage_id = user_data[to_number]['selected_garage']['id']
-                services = get_garage_services(garage_id)
+            # Récupérer les services du client sélectionné
+            if to_number in user_data and 'selected_client' in user_data[to_number]:
+                client_id = user_data[to_number]['selected_client']['id']
+                services = get_client_services(client_id)
             else:
-                # Si aucun garage n'est sélectionné, utiliser les services par défaut
+                # Si aucun client n'est sélectionné, utiliser les services par défaut
                 services = load_services()
 
             # Remplacer les placeholders dans le message
@@ -978,6 +977,23 @@ def send_step_message(to_number, step_index, process):
                 # Stocker les réponses attendues dans user_data pour la validation
                 if to_number in user_data:
                     user_data[to_number]['current_expected_answers'] = expected_answers
+
+        # Nouvelle structure pour les questions supplémentaires
+        if 'additional_questions' in step['dynamic_data']:
+            # Récupérer les questions du client sélectionné
+            if to_number in user_data and 'selected_client' in user_data[to_number]:
+                client = user_data[to_number]['selected_client']
+                if 'additional_questions' in client:
+                    # Remplacer les placeholders dans le message
+                    message = message.replace('{{additional_questions}}', client['additional_questions']['message'])
+                    # Remplacer le placeholder dans save_as
+                    if 'save_as' in step and step['save_as'] == '{{additional_questions_save_as}}':
+                        step['save_as'] = client['additional_questions']['save_as']
+                else:
+                    # Si le client n'a pas de questions supplémentaires, utiliser le message par défaut
+                    message = "Souhaitez-vous ajouter des informations supplémentaires par rapport à votre demande ?"
+                    if 'save_as' in step and step['save_as'] == '{{additional_questions_save_as}}':
+                        step['save_as'] = "Informations supplémentaires"
 
     # Si on a des réponses attendues spécifiques (pas free_text), créer des boutons ou une liste
     if expected_answers != 'free_text' and expected_answers != 'no_reply':
@@ -992,7 +1008,8 @@ def send_step_message(to_number, step_index, process):
             buttons = []
             for answer in expected_answers:
                 # Pour les services, utiliser le nom du service comme titre
-                if 'dynamic_data' in step and ('services' in step['dynamic_data'] or 'services_file' in step['dynamic_data']):
+                if ('dynamic_data' in step and
+                    ('services' in step['dynamic_data'] or 'services_file' in step['dynamic_data'])):
                     for service in services['services']:
                         if service['id'] == answer:
                             # Raccourcir le titre pour les boutons
@@ -1041,7 +1058,8 @@ def send_step_message(to_number, step_index, process):
 
             for answer in expected_answers:
                 # Pour les services, utiliser le nom du service comme titre
-                if 'dynamic_data' in step and ('services' in step['dynamic_data'] or 'services_file' in step['dynamic_data']):
+                if ('dynamic_data' in step and
+                    ('services' in step['dynamic_data'] or 'services_file' in step['dynamic_data'])):
                     for service in services['services']:
                         if service['id'] == answer:
                             # Pour les listes, on peut utiliser des titres plus longs
@@ -1096,10 +1114,10 @@ def send_message(to_number, message):
     if "Voici les créneaux disponibles" in message:
         service_id = user_data.get('test_user', {}).get('data', {}).get('Service souhaité')
         try:
-            # Utiliser les services du garage sélectionné
-            if 'test_user' in user_data and 'selected_garage' in user_data['test_user']:
-                garage_id = user_data['test_user']['selected_garage']['id']
-                services = get_garage_services(garage_id)
+            # Utiliser les services du client sélectionné
+            if 'test_user' in user_data and 'selected_client' in user_data['test_user']:
+                client_id = user_data['test_user']['selected_client']['id']
+                services = get_client_services(client_id)
             else:
                 # Fallback aux services globaux
                 with open('services.json', 'r') as f:
@@ -1156,16 +1174,16 @@ def send_date_buttons(sender):
         "Content-Type": "application/json"
     }
 
-    # Récupérer les jours de travail du garage sélectionné
+    # Récupérer les jours de travail du client sélectionné
     working_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]  # Valeur par défaut
-    if sender in user_data and 'selected_garage' in user_data[sender]:
-        garage_id = user_data[sender]['selected_garage']['id']
-        garages = load_garages()
-        for garage in garages['garages']:
-            if garage['id'] == garage_id:
-                working_days = garage.get('working_days', working_days)
+    if sender in user_data and 'selected_client' in user_data[sender]:
+        client_id = user_data[sender]['selected_client']['id']
+        clients = load_clients()
+        for client in clients['clients']:
+            if client['id'] == client_id:
+                working_days = client.get('working_days', working_days)
                 break
-        print(f"[DEBUG] Jours de travail pour le garage {garage_id}: {working_days}")
+        print(f"[DEBUG] Jours de travail pour le client {client_id}: {working_days}")
 
     # Calculer les dates pour les prochains jours
     today = datetime.now()
@@ -1267,11 +1285,11 @@ def get_future_appointments(sender):
     print(f"\n[DEBUG] Recherche des rendez-vous futurs:")
     print(f"- Client: {sender}")
 
-    # Récupérer l'ID du garage sélectionné
-    garage_id = None
-    if sender in user_data and 'selected_garage' in user_data[sender]:
-        garage_id = user_data[sender]['selected_garage']['id']
-        print(f"- Garage ID: {garage_id}")
+    # Récupérer l'ID du client sélectionné
+    client_id = None
+    if sender in user_data and 'selected_client' in user_data[sender]:
+        client_id = user_data[sender]['selected_client']['id']
+        print(f"- Client ID: {client_id}")
 
     if os.getenv('TEST_MODE') == 'True':
         # En mode test, retourner des rendez-vous fictifs
@@ -1284,7 +1302,7 @@ def get_future_appointments(sender):
                 'id': f"test_rdv_{i}",
                 'start': start_time,
                 'end': end_time,
-                'summary': f"RDV Garage avec {user_data[sender]['data'].get('Nom complet', 'Client')}",
+                'summary': f"RDV avec {user_data[sender]['data'].get('Nom complet', 'Client')}",
                 'description': "Service: Révision (120 min)\nVéhicule: Renault Clio 2019"
             })
         return appointments
@@ -1293,9 +1311,9 @@ def get_future_appointments(sender):
     timezone = pytz.timezone(TIMEZONE)
     now = datetime.now(timezone)
 
-    # Utiliser le service et le calendar_id spécifiques au garage
-    if garage_id:
-        calendar_info = get_garage_calendar_service(garage_id)
+    # Utiliser le service et le calendar_id spécifiques au client
+    if client_id:
+        calendar_info = get_client_calendar_service(client_id)
         specific_calendar_service = calendar_info['service']
         specific_calendar_id = calendar_info['calendar_id']
     else:
@@ -1454,16 +1472,16 @@ def cancel_appointment(appointment_id, sender=None):
     print(f"\n[DEBUG] Tentative d'annulation du rendez-vous:")
     print(f"- ID du rendez-vous: {appointment_id}")
 
-    # Récupérer l'ID du garage sélectionné si sender est fourni
-    garage_id = None
-    if sender and sender in user_data and 'selected_garage' in user_data[sender]:
-        garage_id = user_data[sender]['selected_garage']['id']
-        print(f"- Garage ID: {garage_id}")
+    # Récupérer l'ID du client sélectionné si sender est fourni
+    client_id = None
+    if sender and sender in user_data and 'selected_client' in user_data[sender]:
+        client_id = user_data[sender]['selected_client']['id']
+        print(f"- Client ID: {client_id}")
 
     try:
-        # Utiliser le service et le calendar_id spécifiques au garage
-        if garage_id:
-            calendar_info = get_garage_calendar_service(garage_id)
+        # Utiliser le service et le calendar_id spécifiques au client
+        if client_id:
+            calendar_info = get_client_calendar_service(client_id)
             specific_calendar_service = calendar_info['service']
             specific_calendar_id = calendar_info['calendar_id']
         else:
@@ -1803,8 +1821,8 @@ def handle_final_response(sender, text):
             'data': {},
             'last_activity': datetime.now()
         }
-        # Envoyer le message de sélection de garage plutôt que le message initial du processus
-        send_initial_garage_message(sender)
+        # Envoyer le message de sélection de client plutôt que le message initial du processus
+        send_initial_client_message(sender)
     elif text == "no_new_request":
         print("[DEBUG] Fin de conversation détectée")
         # Effacer la conversation et marquer l'utilisateur comme terminé
@@ -1834,17 +1852,17 @@ def handle_creation_process(sender, state, text, message):
 
             # Vérifier si la date est un jour de travail
             working_days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]  # Valeur par défaut
-            if 'selected_garage' in user_data[sender]:
-                garage_id = user_data[sender]['selected_garage']['id']
-                garages = load_garages()
-                for garage in garages['garages']:
-                    if garage['id'] == garage_id:
-                        working_days = garage.get('working_days', working_days)
+            if 'selected_client' in user_data[sender]:
+                client_id = user_data[sender]['selected_client']['id']
+                clients = load_clients()
+                for client in clients['clients']:
+                    if client['id'] == client_id:
+                        working_days = client.get('working_days', working_days)
                         break
-                print(f"[DEBUG] Jours de travail pour le garage {garage_id}: {working_days}")
+                print(f"[DEBUG] Jours de travail pour le client {client_id}: {working_days}")
 
             if start_date.strftime('%A') not in working_days:
-                send_message(sender, f"Désolé, le garage n'est pas ouvert le {JOURS[start_date.strftime('%A')]}. Merci de choisir un autre jour.")
+                send_message(sender, f"Désolé, le partenaire n'est pas ouvert le {JOURS[start_date.strftime('%A')]}. Merci de choisir un autre jour.")
                 send_date_buttons(sender)  # Renvoyer les boutons
                 return "OK", 200
 
@@ -1853,17 +1871,17 @@ def handle_creation_process(sender, state, text, message):
             send_date_buttons(sender)  # Renvoyer les boutons
             return "OK", 200
 
-        # Récupérer l'ID du garage sélectionné
-        garage_id = None
-        if 'selected_garage' in user_data[sender]:
-            garage_id = user_data[sender]['selected_garage']['id']
+        # Récupérer l'ID du client sélectionné
+        client_id = None
+        if 'selected_client' in user_data[sender]:
+            client_id = user_data[sender]['selected_client']['id']
 
         # Récupérer les informations du service
         service_id = user_data[sender]['data'].get('Service souhaité')
 
-        # Utiliser les services du garage sélectionné
-        if garage_id:
-            services = get_garage_services(garage_id)
+        # Utiliser les services du client sélectionné
+        if client_id:
+            services = get_client_services(client_id)
         else:
             # Fallback aux services globaux
             with open('services.json', 'r') as f:
@@ -1884,7 +1902,7 @@ def handle_creation_process(sender, state, text, message):
             send_message(sender, "Désolé, une erreur est survenue. Veuillez réessayer.")
             return "OK", 200
 
-        slots = find_available_slots(start_date, service_duration, garage_id=garage_id)
+        slots = find_available_slots(start_date, service_duration, client_id=client_id)
         if not slots:
             send_message(sender, "Désolé, aucun créneau n'est disponible à partir de cette date. Merci d'en proposer une autre.")
             send_date_buttons(sender)  # Renvoyer les boutons
@@ -1955,10 +1973,10 @@ def handle_creation_process(sender, state, text, message):
         # Récupérer les informations du service
         service_id = user_data[sender]['data'].get('Service souhaité')
 
-        # Utiliser les services du garage sélectionné
-        if 'selected_garage' in user_data[sender]:
-            garage_id = user_data[sender]['selected_garage']['id']
-            services = get_garage_services(garage_id)
+        # Utiliser les services du client sélectionné
+        if 'selected_client' in user_data[sender]:
+            client_id = user_data[sender]['selected_client']['id']
+            services = get_client_services(client_id)
         else:
             # Fallback aux services globaux
             with open('services.json', 'r') as f:
@@ -2131,25 +2149,25 @@ def handle_other_process(sender, state):
     user_data[sender]['state'] = 'final'
     return "OK", 200
 
-def send_initial_garage_message(sender):
-    """Envoie le message initial demandant le pseudo du garage"""
-    print(f"\n[DEBUG] Envoi du message initial de sélection de garage à {sender}")
-    message = "Bienvenue ! Pour commencer, veuillez indiquer le pseudo du garage avec lequel vous souhaitez prendre rendez-vous."
+def send_initial_client_message(sender):
+    """Envoie le message initial demandant le pseudo du client"""
+    print(f"\n[DEBUG] Envoi du message initial de sélection de client à {sender}")
+    message = "Bienvenue ! Pour commencer, veuillez indiquer le pseudo du partenaire avec lequel vous souhaitez prendre rendez-vous."
     print(f"[DEBUG] Message à envoyer:\n{message}")
     send_message(sender, message)
 
-def send_garage_selection_message(sender):
-    """Envoie la liste des garages disponibles"""
-    print(f"\n[DEBUG] Envoi de la liste des garages à {sender}")
-    garages = load_garages()
-    message = "Voici la liste des garages disponibles :\n\n"
-    message += format_garages_list(garages)
+def send_client_selection_message(sender):
+    """Envoie la liste des clients disponibles"""
+    print(f"\n[DEBUG] Envoi de la liste des clients à {sender}")
+    clients = load_clients()
+    message = "Voici la liste des partenaires disponibles :\n\n"
+    message += format_clients_list(clients)
     print(f"[DEBUG] Message à envoyer:\n{message}")
     send_message(sender, message)
 
-def handle_garage_selection(sender, text):
-    """Gère la sélection du garage par l'utilisateur et retourne les informations du garage"""
-    print(f"\n[DEBUG] Gestion de la sélection du garage:")
+def handle_client_selection(sender, text):
+    """Gère la sélection du client par l'utilisateur et retourne les informations du client"""
+    print(f"\n[DEBUG] Gestion de la sélection du client:")
     print(f"- Sender: {sender}")
     print(f"- Texte reçu: {text}")
 
@@ -2157,12 +2175,12 @@ def handle_garage_selection(sender, text):
     pseudo = text.replace('@', '').strip()
     print(f"[DEBUG] Pseudo nettoyé: {pseudo}")
 
-    garage = get_garage_by_pseudo(pseudo)
+    client = get_client_by_pseudo(pseudo)
 
-    if garage:
-        print(f"[DEBUG] Garage trouvé: {garage['name']}")
+    if client:
+        print(f"[DEBUG] Client trouvé: {client['name']}")
         # Envoyer un message de confirmation
-        confirmation_message = f"Vous avez sélectionné le garage : {garage['name']} ({garage['city']})"
+        confirmation_message = f"Vous avez sélectionné le partenaire : {client['name']} ({client['city']})"
         print(f"[DEBUG] Envoi du message de confirmation: {confirmation_message}")
         send_message(sender, confirmation_message)
 
@@ -2180,22 +2198,22 @@ def handle_garage_selection(sender, text):
             "interactive": {
                 "type": "button",
                 "body": {
-                    "text": "Voulez-vous continuer avec ce garage ?"
+                    "text": "Voulez-vous continuer avec ce partenaire ?"
                 },
                 "action": {
                     "buttons": [
                         {
                             "type": "reply",
                             "reply": {
-                                "id": "confirm_garage",
+                                "id": "confirm_client",
                                 "title": "OK"
                             }
                         },
                         {
                             "type": "reply",
                             "reply": {
-                                "id": "change_garage",
-                                "title": "Changer de garage"
+                                "id": "change_client",
+                                "title": "Changer de partenaire"
                             }
                         }
                     ]
@@ -2205,47 +2223,47 @@ def handle_garage_selection(sender, text):
         print("[DEBUG] Envoi des boutons de confirmation")
         response = requests.post(url, headers=headers, data=json.dumps(payload))
         print(f"[DEBUG] Réponse envoi confirmation: {response.status_code} - {response.json()}")
-        return garage
+        return client
     else:
-        print("[DEBUG] Garage non trouvé, envoi du message d'erreur et de la liste")
-        send_message(sender, "Désolé, je ne trouve pas ce garage. Voici la liste des garages disponibles :")
-        send_garage_selection_message(sender)
+        print("[DEBUG] Client non trouvé, envoi du message d'erreur et de la liste")
+        send_message(sender, "Désolé, je ne trouve pas ce partenaire. Voici la liste des partenaires disponibles :")
+        send_client_selection_message(sender)
         # Réinitialiser l'état de l'utilisateur pour qu'il puisse réessayer
         if sender in user_data:
             user_data[sender]['state'] = 'initial'
         return None
 
-def load_garages():
-    """Charge les garages depuis le fichier garages.json"""
-    print("\n[DEBUG] Chargement des garages depuis garages.json")
+def load_clients():
+    """Charge les clients depuis le fichier clients.json"""
+    print("\n[DEBUG] Chargement des clients depuis clients.json")
     try:
-        with open('garages.json', 'r') as f:
-            garages = json.load(f)
-            print(f"[DEBUG] {len(garages['garages'])} garages chargés")
-            return garages
+        with open('clients.json', 'r') as f:
+            clients = json.load(f)
+            print(f"[DEBUG] {len(clients['clients'])} clients chargés")
+            return clients
     except Exception as e:
-        print(f"[ERROR] Erreur lors du chargement des garages: {str(e)}")
-        return {"garages": []}
+        print(f"[ERROR] Erreur lors du chargement des clients: {str(e)}")
+        return {"clients": []}
 
-def format_garages_list(garages):
-    """Formate la liste des garages pour l'affichage"""
-    print("\n[DEBUG] Formatage de la liste des garages")
+def format_clients_list(clients):
+    """Formate la liste des clients pour l'affichage"""
+    print("\n[DEBUG] Formatage de la liste des clients")
     formatted_list = []
-    for garage in garages['garages']:
-        formatted_line = f"🏪 {garage['name']} ({garage['city']}) - @{garage['pseudo']}"
+    for client in clients['clients']:
+        formatted_line = f"🏪 {client['name']} ({client['city']}) - @{client['pseudo']}"
         formatted_list.append(formatted_line)
-        print(f"[DEBUG] Garage formaté: {formatted_line}")
+        print(f"[DEBUG] Client formaté: {formatted_line}")
     return "\n".join(formatted_list)
 
-def get_garage_by_pseudo(pseudo):
-    """Récupère un garage par son pseudo"""
-    print(f"\n[DEBUG] Recherche du garage avec le pseudo: {pseudo}")
-    garages = load_garages()
-    for garage in garages['garages']:
-        if garage['pseudo'].lower() == pseudo.lower():
-            print(f"[DEBUG] Garage trouvé: {garage['name']} ({garage['city']})")
-            return garage
-    print("[DEBUG] Aucun garage trouvé avec ce pseudo")
+def get_client_by_pseudo(pseudo):
+    """Récupère un client par son pseudo"""
+    print(f"\n[DEBUG] Recherche du client avec le pseudo: {pseudo}")
+    clients = load_clients()
+    for client in clients['clients']:
+        if client['pseudo'].lower() == pseudo.lower():
+            print(f"[DEBUG] Client trouvé: {client['name']} ({client['city']})")
+            return client
+    print("[DEBUG] Aucun client trouvé avec ce pseudo")
     return None
 
 def test_max_appointments_per_slot():
@@ -2255,22 +2273,22 @@ def test_max_appointments_per_slot():
     # Paramètres de test
     start_date = datetime.now().date()
     service_duration = 60  # 60 minutes
-    garage_id = "garage1"  # Utiliser le garage1 qui a max_appointments_per_slot = 2
+    client_id = "client1"  # Utiliser le client1 qui a max_appointments_per_slot = 2
 
-    # Charger les paramètres du garage
-    garages = load_garages()
-    garage = None
-    for g in garages['garages']:
-        if g['id'] == garage_id:
-            garage = g
+    # Charger les paramètres du client
+    clients = load_clients()
+    client = None
+    for c in clients['clients']:
+        if c['id'] == client_id:
+            client = c
             break
 
-    if not garage:
-        print("[ERROR] Garage de test non trouvé")
+    if not client:
+        print("[ERROR] Client de test non trouvé")
         return
 
-    max_appointments = garage.get('max_appointments_per_slot', 1)
-    print(f"[INFO] Garage de test: {garage['name']}")
+    max_appointments = client.get('max_appointments_per_slot', 1)
+    print(f"[INFO] Client de test: {client['name']}")
     print(f"[INFO] Nombre maximal de rendez-vous par créneau: {max_appointments}")
     print(f"[INFO] Type de max_appointments_per_slot: {type(max_appointments)}")
 
