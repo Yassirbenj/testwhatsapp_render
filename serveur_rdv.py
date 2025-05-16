@@ -1174,39 +1174,43 @@ def send_message(to_number, message):
         "Content-Type": "application/json; charset=utf-8"
     }
 
-    # S'assurer que le message est encodé en UTF-8
+    # Préparer le message pour l'API WhatsApp
     try:
-        # Vérifier si le message contient des caractères non-ASCII
-        message.encode('ascii')
-        # Si pas d'erreur, le message est en ASCII
-        body = message
-    except UnicodeEncodeError:
-        # Si erreur, le message contient des caractères non-ASCII
-        body = message.encode('utf-8').decode('utf-8')
+        # Convertir le message en UTF-8
+        message_bytes = message.encode('utf-8')
+        # Décoder en UTF-8 pour s'assurer que c'est valide
+        message_utf8 = message_bytes.decode('utf-8')
 
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": to_number,
-        "type": "text",
-        "text": {
-            "body": body
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": to_number,
+            "type": "text",
+            "text": {
+                "body": message_utf8
+            }
         }
-    }
 
-    # Vérification des variables d'environnement
-    if not ACCESS_TOKEN:
-        print("ERROR: ACCESS_TOKEN is not set in environment variables")
-        return
-    if not PHONE_NUMBER_ID:
-        print("ERROR: PHONE_NUMBER_ID is not set in environment variables")
-        return
+        # Vérification des variables d'environnement
+        if not ACCESS_TOKEN:
+            print("ERROR: ACCESS_TOKEN is not set in environment variables")
+            return
+        if not PHONE_NUMBER_ID:
+            print("ERROR: PHONE_NUMBER_ID is not set in environment variables")
+            return
 
-    print(f"Debug - Using PHONE_NUMBER_ID: {PHONE_NUMBER_ID}")
-    print(f"Debug - ACCESS_TOKEN starts with: {ACCESS_TOKEN[:10]}...")
+        print(f"Debug - Using PHONE_NUMBER_ID: {PHONE_NUMBER_ID}")
+        print(f"Debug - ACCESS_TOKEN starts with: {ACCESS_TOKEN[:10]}...")
+        print(f"Debug - Message UTF-8: {message_utf8}")
 
-    try:
-        response = requests.post(url, headers=headers, data=json.dumps(payload, ensure_ascii=False))
-        print("Réponse envoi message:", response.status_code, response.json())
+        # Envoyer la requête avec ensure_ascii=False pour préserver les caractères spéciaux
+        response = requests.post(
+            url,
+            headers=headers,
+            data=json.dumps(payload, ensure_ascii=False).encode('utf-8')
+        )
+
+        print("Réponse envoi message:", response.status_code)
+        print("Réponse complète:", response.text)
 
         if response.status_code == 400:
             error_data = response.json().get('error', {})
@@ -1215,10 +1219,25 @@ def send_message(to_number, message):
             print(f"Error code: {error_data.get('code')}")
             if 'error_data' in error_data:
                 print(f"Additional error data: {error_data['error_data']}")
+
     except Exception as e:
         print(f"Erreur lors de l'envoi du message: {str(e)}")
         print(f"Message qui a causé l'erreur: {message}")
         print(f"Payload: {payload}")
+        # En cas d'erreur, essayer d'envoyer le message sans encodage spécial
+        try:
+            simple_payload = {
+                "messaging_product": "whatsapp",
+                "to": to_number,
+                "type": "text",
+                "text": {
+                    "body": message
+                }
+            }
+            response = requests.post(url, headers=headers, json=simple_payload)
+            print("Tentative de secours - Réponse:", response.status_code, response.text)
+        except Exception as e2:
+            print(f"Erreur lors de la tentative de secours: {str(e2)}")
 
 def send_date_buttons(sender):
     """Envoie les boutons de sélection de date"""
