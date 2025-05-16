@@ -1171,14 +1171,14 @@ def send_message(to_number, message):
     url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
     headers = {
         "Authorization": f"Bearer {ACCESS_TOKEN}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json; charset=utf-8"
     }
     payload = {
         "messaging_product": "whatsapp",
         "to": to_number,
         "type": "text",
         "text": {
-            "body": message
+            "body": message.encode('utf-8').decode('utf-8')
         }
     }
 
@@ -1193,7 +1193,7 @@ def send_message(to_number, message):
     print(f"Debug - Using PHONE_NUMBER_ID: {PHONE_NUMBER_ID}")
     print(f"Debug - ACCESS_TOKEN starts with: {ACCESS_TOKEN[:10]}...")
 
-    response = requests.post(url, headers=headers, data=json.dumps(payload))
+    response = requests.post(url, headers=headers, data=json.dumps(payload, ensure_ascii=False))
     print("Réponse envoi message:", response.status_code, response.json())
 
     if response.status_code == 400:
