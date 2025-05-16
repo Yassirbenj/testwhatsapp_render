@@ -2229,14 +2229,73 @@ def send_initial_client_message(sender):
     print(f"[DEBUG] Message à envoyer:\n{message}")
     send_message(sender, message)
 
+def format_clients_list(clients):
+    """Formate la liste des clients pour l'affichage dans une liste interactive"""
+    print("\n[DEBUG] Formatage de la liste des clients")
+    formatted_list = []
+    for client in clients['clients']:
+        # Créer une entrée pour la liste interactive
+        # Le titre doit faire maximum 24 caractères
+        title = client['name']
+        if len(title) > 24:
+            title = f"{title[:21]}..."
+
+        # La description peut contenir plus d'informations
+        description = f"{client['city']} - @{client['pseudo']}"
+
+        formatted_list.append({
+            "id": client['pseudo'],  # Utiliser le pseudo comme ID pour la sélection
+            "title": title,
+            "description": description
+        })
+        print(f"[DEBUG] Client formaté: {title} - {description}")
+    return formatted_list
+
 def send_client_selection_message(sender):
-    """Envoie la liste des clients disponibles"""
+    """Envoie la liste interactive des clients disponibles"""
     print(f"\n[DEBUG] Envoi de la liste des clients à {sender}")
     clients = load_clients()
-    message = "Voici la liste des partenaires disponibles :\n\n"
-    message += format_clients_list(clients)
-    print(f"[DEBUG] Message à envoyer:\n{message}")
-    send_message(sender, message)
+
+    # Préparer les sections pour la liste interactive
+    sections = [{
+        "title": "Partenaires disponibles",
+        "rows": format_clients_list(clients)
+    }]
+
+    # Préparer le payload pour l'API WhatsApp
+    url = f"https://graph.facebook.com/v22.0/{PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {ACCESS_TOKEN}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": sender,
+        "type": "interactive",
+        "interactive": {
+            "type": "list",
+            "body": {
+                "text": "Choisissez votre partenaire dans la liste ci-dessous :"
+            },
+            "action": {
+                "button": "Voir les partenaires",
+                "sections": sections
+            }
+        }
+    }
+
+    print("[DEBUG] Envoi de la liste interactive des clients")
+    try:
+        response = requests.post(url, headers=headers, data=json.dumps(payload, ensure_ascii=False))
+        print(f"[DEBUG] Réponse envoi liste: {response.status_code} - {response.json()}")
+    except Exception as e:
+        print(f"[ERROR] Erreur lors de l'envoi de la liste: {str(e)}")
+        # En cas d'erreur, envoyer la liste en format texte comme fallback
+        message = "Voici la liste des partenaires disponibles :\n\n"
+        for client in clients['clients']:
+            message += f"* {client['name']} ({client['city']}) - @{client['pseudo']}\n"
+        send_message(sender, message)
 
 def handle_client_selection(sender, text):
     """Gère la sélection du client par l'utilisateur et retourne les informations du client"""
@@ -2334,17 +2393,6 @@ def load_clients():
     except Exception as e:
         print(f"[ERROR] Erreur lors du chargement des clients: {str(e)}")
         return {"clients": []}
-
-def format_clients_list(clients):
-    """Formate la liste des clients pour l'affichage"""
-    print("\n[DEBUG] Formatage de la liste des clients")
-    formatted_list = []
-    for client in clients['clients']:
-        # Utiliser des caractères ASCII simples au lieu des émojis
-        formatted_line = f"* {client['name']} ({client['city']}) - @{client['pseudo']}"
-        formatted_list.append(formatted_line)
-        print(f"[DEBUG] Client formaté: {formatted_line}")
-    return "\n".join(formatted_list)
 
 def get_client_by_pseudo(pseudo):
     """Récupère un client par son pseudo"""

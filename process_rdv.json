@@ -1,6 +1,6 @@
 [
   {
-    "message": "Bonjour ��, bienvenue chez {{client_name}} !\nComment puis-je vous aider ?\n\n1- Prendre rendez-vous\n2- Annuler un rendez-vous\n3- Autres",
+    "message": "Bonjour, bienvenue chez {{client_name}} !\nComment puis-je vous aider ?\n\n1- Prendre rendez-vous\n2- Annuler un rendez-vous\n3- Autres",
     "expected_answers": ["1", "2", "3"],
     "next_step": {
       "1": 1,
