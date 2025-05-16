@@ -1043,10 +1043,11 @@ def send_step_message(to_number, step_index, process):
                     ('services' in step['dynamic_data'] or 'services_file' in step['dynamic_data'])):
                     for service in services['services']:
                         if service['id'] == answer:
-                            # Raccourcir le titre pour les boutons
-                            title = f"{service['name']} ({service['duration']}min)"
-                            if len(title) > 20:
-                                title = f"{service['name'][:15]}... ({service['duration']}min)"
+                            # Raccourcir le titre pour les listes
+                            title = f"{service['name']}"
+                            if len(title) > 24:
+                                title = f"{service['name'][:21]}..."
+                            description = f"Durée: {service['duration']} min"
                             break
                 else:
                     # Pour les choix génériques (1, 2, 3), utiliser des libellés explicites
