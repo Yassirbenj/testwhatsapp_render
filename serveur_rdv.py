@@ -1173,12 +1173,23 @@ def send_message(to_number, message):
         "Authorization": f"Bearer {ACCESS_TOKEN}",
         "Content-Type": "application/json; charset=utf-8"
     }
+
+    # S'assurer que le message est encodé en UTF-8
+    try:
+        # Vérifier si le message contient des caractères non-ASCII
+        message.encode('ascii')
+        # Si pas d'erreur, le message est en ASCII
+        body = message
+    except UnicodeEncodeError:
+        # Si erreur, le message contient des caractères non-ASCII
+        body = message.encode('utf-8').decode('utf-8')
+
     payload = {
         "messaging_product": "whatsapp",
         "to": to_number,
         "type": "text",
         "text": {
-            "body": message.encode('utf-8').decode('utf-8')
+            "body": body
         }
     }
 
@@ -1193,16 +1204,21 @@ def send_message(to_number, message):
     print(f"Debug - Using PHONE_NUMBER_ID: {PHONE_NUMBER_ID}")
     print(f"Debug - ACCESS_TOKEN starts with: {ACCESS_TOKEN[:10]}...")
 
-    response = requests.post(url, headers=headers, data=json.dumps(payload, ensure_ascii=False))
-    print("Réponse envoi message:", response.status_code, response.json())
+    try:
+        response = requests.post(url, headers=headers, data=json.dumps(payload, ensure_ascii=False))
+        print("Réponse envoi message:", response.status_code, response.json())
 
-    if response.status_code == 400:
-        error_data = response.json().get('error', {})
-        print(f"Error details: {error_data.get('message')}")
-        print(f"Error type: {error_data.get('type')}")
-        print(f"Error code: {error_data.get('code')}")
-        if 'error_data' in error_data:
-            print(f"Additional error data: {error_data['error_data']}")
+        if response.status_code == 400:
+            error_data = response.json().get('error', {})
+            print(f"Error details: {error_data.get('message')}")
+            print(f"Error type: {error_data.get('type')}")
+            print(f"Error code: {error_data.get('code')}")
+            if 'error_data' in error_data:
+                print(f"Additional error data: {error_data['error_data']}")
+    except Exception as e:
+        print(f"Erreur lors de l'envoi du message: {str(e)}")
+        print(f"Message qui a causé l'erreur: {message}")
+        print(f"Payload: {payload}")
 
 def send_date_buttons(sender):
     """Envoie les boutons de sélection de date"""
@@ -2263,14 +2279,29 @@ def handle_client_selection(sender, text):
         print(f"[DEBUG] Réponse envoi confirmation: {response.status_code} - {response.json()}")
         return client
     else:
-        print("[DEBUG] Client non trouvé, envoi du message d'erreur et de la liste")
-        # Envoyer d'abord le message d'erreur
-        send_message(sender, "Désolé, je ne trouve pas ce partenaire.")
-        # Puis envoyer la liste des clients
-        send_client_selection_message(sender)
-        # Réinitialiser l'état de l'utilisateur pour qu'il puisse réessayer
-        if sender in user_data:
-            user_data[sender]['state'] = 'initial'
+        print("[DEBUG] Client non trouvé")
+        # Vérifier si c'est la première tentative
+        if sender not in user_data or 'client_selection_attempts' not in user_data[sender]:
+            user_data[sender] = {
+                'state': 'initial',
+                'current_step': 0,
+                'data': {},
+                'last_activity': datetime.now(),
+                'client_selection_attempts': 1
+            }
+        else:
+            # Incrémenter le compteur de tentatives
+            user_data[sender]['client_selection_attempts'] += 1
+
+        # Si c'est la première tentative, envoyer le message d'erreur et la liste
+        if user_data[sender]['client_selection_attempts'] == 1:
+            send_message(sender, "Désolé, je ne trouve pas ce partenaire. Voici la liste des partenaires disponibles :")
+            send_client_selection_message(sender)
+        else:
+            # Si ce n'est pas la première tentative, envoyer un message plus explicite
+            send_message(sender, "Le pseudo que vous avez saisi n'est pas dans la liste. Veuillez copier-coller exactement le pseudo d'un partenaire de la liste ci-dessus.")
+            send_client_selection_message(sender)
+
         return None
 
 def load_clients():
@@ -2290,7 +2321,8 @@ def format_clients_list(clients):
     print("\n[DEBUG] Formatage de la liste des clients")
     formatted_list = []
     for client in clients['clients']:
-        formatted_line = f"🏪 {client['name']} ({client['city']}) - @{client['pseudo']}"
+        # Utiliser des caractères ASCII simples au lieu des émojis
+        formatted_line = f"* {client['name']} ({client['city']}) - @{client['pseudo']}"
         formatted_list.append(formatted_line)
         print(f"[DEBUG] Client formaté: {formatted_line}")
     return "\n".join(formatted_list)
