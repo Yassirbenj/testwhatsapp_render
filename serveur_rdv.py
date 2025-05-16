@@ -764,7 +764,7 @@ def webhook():
                                                     "type": "reply",
                                                     "reply": {
                                                         "id": "change_client",
-                                                        "title": "Changer de partenaire"
+                                                        "title": "Changer"
                                                     }
                                                 }
                                             ]
