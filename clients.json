@@ -48,8 +48,8 @@
                 "sheets": "credentials/garage2_sheets.json"
             },
             "additional_questions": {
-                "message": "Merci de nous indiquer : \n1. Le modèle et l'année de votre véhicule\n2. Le kilométrage actuel\n3. Les symptômes ou problèmes constatés",
-                "save_as": "Détails véhicule et problèmes"
+                "message": "Avez vous des préférences pour votre rendez-vous ?",
+                "save_as": "Détails supplémentaires"
             },
             "services": [
                 {
