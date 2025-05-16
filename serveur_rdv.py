@@ -2264,7 +2264,9 @@ def handle_client_selection(sender, text):
         return client
     else:
         print("[DEBUG] Client non trouvé, envoi du message d'erreur et de la liste")
-        send_message(sender, "Désolé, je ne trouve pas ce partenaire. Voici la liste des partenaires disponibles :")
+        # Envoyer d'abord le message d'erreur
+        send_message(sender, "Désolé, je ne trouve pas ce partenaire.")
+        # Puis envoyer la liste des clients
         send_client_selection_message(sender)
         # Réinitialiser l'état de l'utilisateur pour qu'il puisse réessayer
         if sender in user_data:
