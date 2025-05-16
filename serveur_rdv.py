@@ -2219,7 +2219,7 @@ def handle_client_selection(sender, text):
                             "type": "reply",
                             "reply": {
                                 "id": "change_client",
-                                "title": "Changer de partenaire"
+                                "title": "Changer"
                             }
                         }
                     ]
