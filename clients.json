@@ -34,15 +34,15 @@
         },
         {
             "id": "client2",
-            "name": "Mécanique Express",
+            "name": "Salon spa Marjane",
             "phone": "33600000002",
-            "city": "Lyon",
-            "pseudo": "meca_express",
-            "calendar_id": "client2@gmail.com",
-            "closing_hour": 19,
-            "working_hours": [8, 9, 10, 11, 12, 14, 15, 16, 17, 18],
+            "city": "Harhoura",
+            "pseudo": "spa_marjane",
+            "calendar_id": "benjilaliyassir@gmail.com",
+            "closing_hour": 22,
+            "working_hours": [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
             "working_days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-            "max_appointments_per_slot": 3,
+            "max_appointments_per_slot": 5,
             "credentials": {
                 "calendar": "credentials/garage2_calendar.json",
                 "sheets": "credentials/garage2_sheets.json"
@@ -54,12 +54,52 @@
             "services": [
                 {
                     "id": "1",
-                    "name": "ريفزيون",
-                    "duration": 90
+                    "name": "Coupe + Brushing",
+                    "duration": 60
                 },
                 {
                     "id": "2",
-                    "name": "تبديل الزيت",
+                    "name": "Coloration",
+                    "duration": 120
+                },
+                {
+                    "id": "3",
+                    "name": "Mèches/Balayage",
+                    "duration": 150
+                },
+                {
+                    "id": "4",
+                    "name": "Shampoing + Soin",
+                    "duration": 45
+                },
+                {
+                    "id": "5",
+                    "name": "Manucure",
+                    "duration": 45
+                },
+                {
+                    "id": "6",
+                    "name": "Pédicure",
+                    "duration": 45
+                },
+                {
+                    "id": "7",
+                    "name": "Massage Relaxant",
+                    "duration": 60
+                },
+                {
+                    "id": "8",
+                    "name": "Soin du Visage",
+                    "duration": 60
+                },
+                {
+                    "id": "9",
+                    "name": "Épilation Sourcils",
+                    "duration": 15
+                },
+                {
+                    "id": "10",
+                    "name": "Épilation Jambes",
                     "duration": 45
                 }
             ]
