@@ -771,7 +771,13 @@ def webhook():
                                         }
                                     }
                                 }
+                                print("[DEBUG] Préparation de l'envoi des boutons de confirmation")
+                                print(f"[DEBUG] URL: {url}")
+                                print(f"[DEBUG] Headers: {headers}")
+                                print(f"[DEBUG] Payload: {json.dumps(payload, indent=2)}")
                                 response = requests.post(url, headers=headers, data=json.dumps(payload))
+                                print(f"[DEBUG] Réponse envoi boutons de confirmation: {response.status_code} - {response.json()}")
+                                return "OK", 200
                             else:
                                 print("[DEBUG] Aucun client trouvé, envoi du message initial")
                                 # Premier message - choisir le client
@@ -782,7 +788,7 @@ def webhook():
                                     'last_activity': datetime.now()
                                 }
                                 send_initial_client_message(sender)
-                            return "OK", 200
+                                return "OK", 200
 
                         # Mettre à jour le timestamp de dernière activité
                         user_data[sender]['last_activity'] = datetime.now()
