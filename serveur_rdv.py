@@ -1044,20 +1044,21 @@ def send_step_message(to_number, step_index, process):
                     for service in services['services']:
                         if service['id'] == answer:
                             # Raccourcir le titre pour les listes
-                            title = f"{service['name']}"
+                            title = service['name']
                             if len(title) > 24:
-                                title = f"{service['name'][:21]}..."
+                                title = f"{title[:21]}..."
                             description = f"Durée: {service['duration']} min"
                             break
                 else:
-                    # Pour les choix génériques (1, 2, 3), utiliser des libellés explicites
+                    # Pour les autres choix, utiliser le texte de la réponse
                     title = answer
                     if answer == '1':
-                        title = 'Prendre rendez-vous'
+                        title = 'Prendre un RDV'
                     elif answer == '2':
                         title = 'Annuler un RDV'
                     elif answer == '3':
                         title = 'Autres'
+                    description = ""
 
                 buttons.append({
                     "type": "reply",
@@ -1094,26 +1095,31 @@ def send_step_message(to_number, step_index, process):
                     ('services' in step['dynamic_data'] or 'services_file' in step['dynamic_data'])):
                     for service in services['services']:
                         if service['id'] == answer:
-                            # Pour les listes, on peut utiliser des titres plus longs
-                            title = f"{service['name']} ({service['duration']} min)"
-                            description = f"Durée estimée: {service['duration']} minutes"
+                            # Raccourcir le titre pour les listes
+                            title = service['name']
+                            if len(title) > 24:
+                                title = f"{title[:21]}..."
+                            description = f"Durée: {service['duration']} min"
+                            sections[0]["rows"].append({
+                                "id": answer,
+                                "title": title,
+                                "description": description
+                            })
                             break
                 else:
                     # Pour les autres choix, utiliser le texte de la réponse
                     title = answer
                     if answer == '1':
-                        title = 'Prendre rendez-vous'
+                        title = 'Prendre un RDV'
                     elif answer == '2':
-                        title = 'Annuler un rendez-vous'
+                        title = 'Annuler un RDV'
                     elif answer == '3':
                         title = 'Autres'
-                    description = ""
-
-                sections[0]["rows"].append({
-                    "id": answer,
-                    "title": title,
-                    "description": description
-                })
+                    sections[0]["rows"].append({
+                        "id": answer,
+                        "title": title,
+                        "description": ""
+                    })
 
             payload = {
                 "messaging_product": "whatsapp",
